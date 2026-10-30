@@ -530,6 +530,7 @@ pub struct ModelTestResult {
 
 #[tauri::command]
 async fn model_test(
+    state: State<'_, AppState>,
     provider_id: String,
     model: String,
     base_url: Option<String>,
@@ -544,7 +545,12 @@ async fn model_test(
     let allow_local = !spec.requires_api_key;
     settings::validate_endpoint(&url, allow_local)?;
 
-    let key = api_key.unwrap_or_default();
+    // key：优先用本次填入的 key；留空则回退到 keyring 里已保存的 key
+    //（前端「留空不修改」语义，与 ai_chat_send 一致）。
+    let key = match api_key.as_deref() {
+        Some(k) if !k.trim().is_empty() => k.to_string(),
+        _ => state.keyring.get(&provider_id)?.unwrap_or_default(),
+    };
     let provider = build_provider(&provider_id, &model, base_url.as_deref(), &key)
         .map_err(|e| e.to_string())?;
     let req = crate::ai::providers::ChatRequest {
