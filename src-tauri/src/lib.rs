@@ -21,7 +21,7 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::ai::orchestrator::{
-    run_turn, CanvasContext, DiagramOp, TurnBridge, TurnEvent, TurnInput, VlmStatus,
+    run_turn, CanvasContext, DiagramOp, TurnBridge, TurnEvent, TurnInput, UploadedImage, VlmStatus,
 };
 use crate::ai::providers::table::{build_provider, catalog_json};
 use crate::ai::providers::ChatMessage;
@@ -48,6 +48,13 @@ pub struct CanvasInput {
     pub page_count: usize,
     #[serde(default)]
     pub selection: Vec<String>,
+}
+
+/// 上传的图片（FR-A7）。data_base64 为纯 base64（不含 data URI 前缀）。
+#[derive(Debug, Deserialize)]
+pub struct ImageInput {
+    pub mime: String,
+    pub data_base64: String,
 }
 
 impl From<CanvasInput> for CanvasContext {
@@ -244,6 +251,7 @@ async fn ai_chat_send(
     session_id: String,
     message: String,
     canvas: CanvasInput,
+    images: Option<Vec<ImageInput>>,
 ) -> Result<TurnInfo, String> {
     let settings = settings::Settings::load(&state.data_dir)?;
     if !settings.ai_enabled {
@@ -407,10 +415,19 @@ async fn ai_chat_send(
 
     tauri::async_runtime::spawn(async move {
         let mut session_guard = session2.lock().await;
+        let images = images
+            .unwrap_or_default()
+            .into_iter()
+            .map(|i| UploadedImage {
+                mime: i.mime,
+                data_base64: i.data_base64,
+            })
+            .collect::<Vec<_>>();
         let input = TurnInput {
             message,
             canvas: canvas.into(),
             minimal_style,
+            images,
         };
         match run_turn(
             provider,

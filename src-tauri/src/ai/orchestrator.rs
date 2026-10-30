@@ -16,7 +16,9 @@ use super::embedded_images::{hide_image_data, image_ref_note};
 use super::pages::{page_model_xml, place_on_page, PageSelector};
 use super::prepare::{prepare_new_diagram, NewDiagram};
 use super::prompt::get_system_prompt;
-use super::providers::{ChatMessage, ChatRequest, ContentBlock, Provider, StreamChunk, ToolCall};
+use super::providers::{
+    ChatMessage, ChatRequest, ContentBlock, Provider, Role, StreamChunk, ToolCall,
+};
 use super::session::SessionContext;
 use super::shape_library::get_shape_library;
 use super::tools::{openai_tools, parse_tool_args, ToolArgs};
@@ -35,12 +37,22 @@ pub struct CanvasContext {
     pub selection: Vec<String>,
 }
 
+/// 上传的图片（FR-A7：截图/图片 → 图形）。mime 如 "image/png"，data_base64
+/// 为纯 base64（不含 data URI 前缀）。
+#[derive(Debug, Clone)]
+pub struct UploadedImage {
+    pub mime: String,
+    pub data_base64: String,
+}
+
 /// 回合输入。
 #[derive(Debug, Clone)]
 pub struct TurnInput {
     pub message: String,
     pub canvas: CanvasContext,
     pub minimal_style: bool,
+    /// 本回合附带的上传图片（空则纯文本）。
+    pub images: Vec<UploadedImage>,
 }
 
 /// 图操作（发给前端加载）。
@@ -349,7 +361,18 @@ pub async fn run_turn(
         input.minimal_style,
     )));
     messages.extend(session.history.clone());
-    messages.push(ChatMessage::user(format!("{}\n\n{}", input.message, note)));
+    // FR-A7：有上传图片时，user 消息带多模态 image block
+    let mut user_blocks = vec![ContentBlock::text(format!("{}\n\n{}", input.message, note))];
+    for img in &input.images {
+        user_blocks.push(ContentBlock::image(&img.mime, &img.data_base64));
+    }
+    messages.push(ChatMessage {
+        role: Role::User,
+        blocks: user_blocks,
+        tool_calls: Vec::new(),
+        tool_call_id: None,
+        name: None,
+    });
 
     let mut current_doc = input.canvas.full_xml.clone();
     let mut pending_append: Option<String> = None;
@@ -550,6 +573,7 @@ mod tests {
             message: "hi".to_string(),
             canvas: canvas(),
             minimal_style: false,
+            images: Vec::new(),
         };
         let events: Arc<Mutex<Vec<TurnEvent>>> = Arc::new(Mutex::new(Vec::new()));
         let events2 = events.clone();
@@ -595,6 +619,7 @@ mod tests {
             message: "draw a box".to_string(),
             canvas: canvas(),
             minimal_style: false,
+            images: Vec::new(),
         };
         let events: Arc<Mutex<Vec<TurnEvent>>> = Arc::new(Mutex::new(Vec::new()));
         let events2 = events.clone();

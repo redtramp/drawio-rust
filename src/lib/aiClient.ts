@@ -10,15 +10,22 @@ export interface CanvasContext {
   selection: string[];
 }
 
+export interface UploadedImage {
+  mime: string;
+  data_base64: string;
+}
+
 export async function sendChat(
   session_id: string,
   message: string,
   canvas: CanvasContext,
+  images?: UploadedImage[],
 ): Promise<string> {
   const { turn_id } = await invoke<{ turn_id: string }>("ai_chat_send", {
     sessionId: session_id,
     message,
     canvas,
+    images: images ?? null,
   });
   return turn_id;
 }
