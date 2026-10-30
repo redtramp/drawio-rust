@@ -4,6 +4,7 @@ description = "drawio-rust desktop shell (Tauri 2 main process)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+default-run = "drawio-rust"
 
 [lib]
 name = "drawio_rust_lib"
