@@ -199,4 +199,39 @@ mod tests {
         // 列表接口不含 xml
         assert!(store.list()[0].xml.is_none());
     }
+
+    #[test]
+    fn append_and_load_messages() {
+        let dir = tempfile::tempdir().unwrap();
+        let rec = ChatRecord {
+            role: "user".to_string(),
+            content: "hello".to_string(),
+        };
+        append_message(dir.path(), "s1", &rec).unwrap();
+        append_message(
+            dir.path(),
+            "s1",
+            &ChatRecord {
+                role: "assistant".to_string(),
+                content: "hi".to_string(),
+            },
+        )
+        .unwrap();
+        let msgs = load_messages(dir.path(), "s1");
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].content, "hello");
+        assert_eq!(msgs[1].role, "assistant");
+    }
+
+    #[test]
+    fn load_messages_skips_corrupt_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = messages_path(dir.path(), "s1");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{\"role\":\"user\",\"content\":\"ok\"}\nnot-json\n").unwrap();
+        let msgs = load_messages(dir.path(), "s1");
+        assert_eq!(msgs.len(), 1);
+        // 不存在的会话返回空
+        assert!(load_messages(dir.path(), "nope").is_empty());
+    }
 }

@@ -199,4 +199,41 @@ mod tests {
         assert!(out.contains("mxfile"));
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    #[test]
+    fn parses_embedded_svg() {
+        // .drawio.svg：content 属性内嵌 mxfile（含 HTML 实体转义）
+        let embedded = r#"<mxfile><diagram id="p1"><mxGraphModel><root><mxCell id="0"/></root></mxGraphModel></diagram></mxfile>"#;
+        let escaped = embedded
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;");
+        let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" content="{escaped}"></svg>"#);
+        let (out, _) = parse_drawio_file_content(&svg).unwrap();
+        assert!(out.contains("mxfile"));
+    }
+
+    #[test]
+    fn rejects_svg_without_embedded_diagram() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#;
+        assert!(parse_drawio_file_content(svg).is_err());
+        // content 为空
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" content=""></svg>"#;
+        assert!(parse_drawio_file_content(svg).is_err());
+    }
+
+    #[test]
+    fn rejects_svg_with_non_drawio_content() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" content="not drawio at all"></svg>"#;
+        assert!(parse_drawio_file_content(svg).is_err());
+    }
+
+    #[test]
+    fn strips_prolog() {
+        assert_eq!(
+            strip_xml_prolog(r#"<?xml version="1.0"?><!-- comment --><mxfile/>"#),
+            "<mxfile/>"
+        );
+    }
 }

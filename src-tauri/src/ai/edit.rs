@@ -699,4 +699,52 @@ mod tests {
         assert_eq!(r.errors.len(), 1);
         assert!(r.errors[0].message.contains("ID mismatch"));
     }
+
+    #[test]
+    fn update_missing_cell_reports_error() {
+        let ops = vec![DiagramOperation {
+            operation: "update".into(),
+            cell_id: "nope".into(),
+            new_xml: Some(r#"<mxCell id="nope" value="X"/>"#.into()),
+        }];
+        let r = apply_diagram_operations(&sample(), &ops, &PageSelector::default());
+        assert_eq!(r.errors.len(), 1);
+        assert!(r.errors[0].message.contains("not found"));
+    }
+
+    #[test]
+    fn add_duplicate_reports_error() {
+        let ops = vec![DiagramOperation {
+            operation: "add".into(),
+            cell_id: "2".into(),
+            new_xml: Some(r#"<mxCell id="2" value="B"/>"#.into()),
+        }];
+        let r = apply_diagram_operations(&sample(), &ops, &PageSelector::default());
+        assert_eq!(r.errors.len(), 1);
+        assert!(r.errors[0].message.contains("already exists"));
+    }
+
+    #[test]
+    fn delete_root_cell_reports_error() {
+        let ops = vec![DiagramOperation {
+            operation: "delete".into(),
+            cell_id: "1".into(),
+            new_xml: None,
+        }];
+        let r = apply_diagram_operations(&sample(), &ops, &PageSelector::default());
+        assert_eq!(r.errors.len(), 1);
+        assert!(r.errors[0].message.contains("root"));
+    }
+
+    #[test]
+    fn unknown_operation_reports_error() {
+        let ops = vec![DiagramOperation {
+            operation: "frobnicate".into(),
+            cell_id: "2".into(),
+            new_xml: None,
+        }];
+        let r = apply_diagram_operations(&sample(), &ops, &PageSelector::default());
+        assert_eq!(r.errors.len(), 1);
+        assert!(r.errors[0].message.contains("unknown operation"));
+    }
 }

@@ -113,4 +113,47 @@ maps_to = "src-tauri/src/ai/"
         assert_eq!(m.upstream["next"].assets.len(), 1);
         assert_eq!(m.upstream["next"].logic.len(), 1);
     }
+
+    #[test]
+    fn ordered_ids_are_sorted() {
+        let m: Manifest = toml::from_str(
+            r#"
+[upstream.b]
+remote = "r" 
+branch = "b"
+pinned_commit = "c"
+tier = "l1"
+
+[upstream.a]
+remote = "r"
+branch = "b"
+pinned_commit = "c"
+tier = "l1"
+"#,
+        )
+        .unwrap();
+        assert_eq!(m.ordered_ids(), vec!["a", "b"]);
+        assert!(!m.has_tier("missing", "l1"));
+    }
+
+    #[test]
+    fn load_from_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(UPSTREAM_TOML);
+        std::fs::write(
+            &path,
+            r#"
+[upstream.drawio]
+remote = "https://github.com/jgraph/drawio.git"
+branch = "dev"
+pinned_commit = "abc123"
+tier = "l1"
+"#,
+        )
+        .unwrap();
+        let m = Manifest::load(&path).unwrap();
+        assert!(m.has_tier("drawio", "l1"));
+        // 不存在报错
+        assert!(Manifest::load(&dir.path().join("nope.toml")).is_err());
+    }
 }

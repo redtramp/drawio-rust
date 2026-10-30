@@ -192,4 +192,33 @@ mod tests {
         ensure_mirror(tmp.path(), "t", &up).unwrap();
         assert!(mirror_dir(tmp.path(), "t").join(".git").exists());
     }
+
+    #[test]
+    fn status_reports_drift() {
+        let tmp = tempfile::tempdir().unwrap();
+        let up_dir = tmp.path().join("upstream");
+        init_upstream(&up_dir);
+        let head = git(&["rev-parse", "HEAD"], &up_dir).unwrap();
+        let toml = format!(
+            r#"[upstream.t]
+remote = "{}"
+branch = "main"
+pinned_commit = "{}"
+tier = "l1"
+"#,
+            up_dir.to_string_lossy(),
+            head
+        );
+        std::fs::write(tmp.path().join("upstream.toml"), toml).unwrap();
+        let report = status(tmp.path().to_path_buf(), &[]).unwrap();
+        assert_eq!(report.upstreams.len(), 1);
+        assert!(!report.upstreams[0].drift);
+        // 未知上游报错
+        assert!(status(tmp.path().to_path_buf(), &["nope".to_string()]).is_err());
+    }
+
+    #[test]
+    fn doctor_reports_git_available() {
+        assert!(doctor().is_ok());
+    }
 }

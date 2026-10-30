@@ -311,4 +311,71 @@ mod tests {
             "1\n"
         );
     }
+
+    #[test]
+    fn file_hash_is_deterministic_and_content_based() {
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a.txt");
+        std::fs::write(&a, "same").unwrap();
+        assert_eq!(file_hash(&a).unwrap(), file_hash(&a).unwrap());
+        let b = tmp.path().join("b.txt");
+        std::fs::write(&b, "diff").unwrap();
+        assert_ne!(file_hash(&a).unwrap(), file_hash(&b).unwrap());
+        assert!(file_hash(&tmp.path().join("nope.txt")).is_err());
+    }
+
+    #[test]
+    fn dir_map_walks_recursively_and_handles_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let d = tmp.path().join("src");
+        std::fs::create_dir_all(d.join("sub")).unwrap();
+        std::fs::write(d.join("a.txt"), "a").unwrap();
+        std::fs::write(d.join("sub/b.txt"), "b").unwrap();
+        let map = dir_map(&d).unwrap();
+        assert_eq!(map.len(), 2);
+        assert!(map.contains_key("a.txt"));
+        assert!(map.contains_key("sub/b.txt"));
+        // 不存在目录 → 空 map
+        assert!(dir_map(&tmp.path().join("nope")).unwrap().is_empty());
+    }
+
+    #[test]
+    fn copy_dir_contents_replaces_target() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("a.txt"), "new-a").unwrap();
+        std::fs::write(src.join("sub/b.txt"), "new-b").unwrap();
+        let dst = tmp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap();
+        std::fs::write(dst.join("stale.txt"), "stale").unwrap();
+        copy_dir_contents(&src, &dst).unwrap();
+        assert_eq!(std::fs::read_to_string(dst.join("a.txt")).unwrap(), "new-a");
+        assert_eq!(
+            std::fs::read_to_string(dst.join("sub/b.txt")).unwrap(),
+            "new-b"
+        );
+        // 旧文件被清空（整目录换版语义）
+        assert!(!dst.join("stale.txt").exists());
+    }
+
+    #[test]
+    fn glob_files_matches_and_sorts() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("b.md"), "b").unwrap();
+        std::fs::write(tmp.path().join("a.md"), "a").unwrap();
+        std::fs::write(tmp.path().join("c.txt"), "c").unwrap();
+        let files = glob_files(tmp.path(), "*.md").unwrap();
+        assert_eq!(files.len(), 2);
+        assert!(files[0].ends_with("a.md"));
+        assert!(files[1].ends_with("b.md"));
+    }
+
+    #[test]
+    fn run_rejects_unknown_flag() {
+        let tmp = tempfile::tempdir().unwrap();
+        let r = run(tmp.path().to_path_buf(), &["--bogus".to_string()]);
+        assert!(r.is_err());
+        assert!(r.unwrap_err().contains("unknown flag"));
+    }
 }

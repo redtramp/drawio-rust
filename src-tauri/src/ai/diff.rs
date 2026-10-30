@@ -502,4 +502,61 @@ mod tests {
         );
         assert_eq!(normal_style(";rounded=1"), ";rounded=1");
     }
+
+    #[test]
+    fn cell_labels_skip_edges_and_edges_of() {
+        let xml = r#"<mxfile><diagram id="p1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="a" value="Alpha" vertex="1" parent="1"/><mxCell id="b" value="Beta" vertex="1" parent="1"/><mxCell id="e" value="edge" edge="1" parent="1" source="a" target="b"/><mxCell id="lbl" value="edge-label" vertex="1" parent="e"/></root></mxGraphModel></diagram></mxfile>"#;
+        let labels = cell_labels(
+            xml,
+            &["a".into(), "b".into(), "e".into(), "lbl".into()],
+            Some("p1"),
+        );
+        assert_eq!(labels, vec!["Alpha", "Beta"]);
+    }
+
+    #[test]
+    fn geometry_numbers_normalized_in_signature() {
+        // x=40 vs x=40.0 视为同一 cell（几何数字归一化）
+        let a = r#"<mxfile><diagram id="p1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="c" vertex="1" parent="1"><mxGeometry x="40" y="40" width="120" height="60" as="geometry"/></mxCell></root></mxGraphModel></diagram></mxfile>"#;
+        let b = a.replace(r#"x="40""#, r#"x="40.0""#);
+        assert!(is_same_document(a, &b));
+    }
+
+    #[test]
+    fn same_file_vars_order_independent() {
+        assert!(same_file_vars(
+            Some(r#"{"a":1,"b":2}"#),
+            Some(r#"{"b":2,"a":1}"#)
+        ));
+        assert!(!same_file_vars(Some(r#"{"a":1}"#), Some(r#"{"a":2}"#)));
+        // none 等同空对象
+        assert!(same_file_vars(None, Some("{}")));
+        assert!(same_file_vars(None, None));
+        // 相同字符串直接相等（含非法 JSON）
+        assert!(same_file_vars(Some("not json"), Some("not json")));
+    }
+
+    #[test]
+    fn same_document_detects_content_change() {
+        let changed = DOC.replace(r#"value="A""#, r#"value="Z""#);
+        assert!(!is_same_document(DOC, &changed));
+        // 不同页数不相等
+        let extra = DOC.replace(
+            "</root>",
+            r#"<mxCell id="x" value="X" vertex="1" parent="1"/></root>"#,
+        );
+        assert!(!is_same_document(DOC, &extra));
+    }
+
+    #[test]
+    fn diff_counts_edges_and_removals() {
+        let before = r#"<mxfile><diagram id="p1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="a" value="A" vertex="1" parent="1"/><mxCell id="b" value="B" vertex="1" parent="1"/><mxCell id="e" edge="1" parent="1" source="a" target="b"/></root></mxGraphModel></diagram></mxfile>"#;
+        let after = r#"<mxfile><diagram id="p1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="a" value="A2" vertex="1" parent="1"/><mxCell id="e2" edge="1" parent="1" source="a" target="b"/></root></mxGraphModel></diagram></mxfile>"#;
+        let d = diff_diagrams(before, after, Some("p1"));
+        assert_eq!(d.summary.shapes_changed, 1);
+        assert_eq!(d.summary.shapes_removed, 1); // b 删除
+        assert_eq!(d.summary.edges_removed, 1); // e 删除
+        assert_eq!(d.summary.edges_added, 1); // e2 新增
+        assert!(!d.from_scratch);
+    }
 }

@@ -1359,4 +1359,106 @@ mod tests {
             r#"<mxCell id="2" x="40" y="40" w="120" h="60"/>"#
         );
     }
+
+    #[test]
+    fn detects_duplicate_structural_attribute() {
+        let bad = r#"<mxCell id="2" vertex="1" vertex="0" parent="1"/>"#;
+        assert!(validate_mx_cell_structure(bad, false).is_some());
+    }
+
+    #[test]
+    fn detects_duplicate_diagram_id() {
+        let bad = r#"<mxfile><diagram id="p1"/><diagram id="p1"/></mxfile>"#;
+        assert!(validate_mx_cell_structure(bad, false)
+            .unwrap()
+            .contains("diagram"));
+    }
+
+    #[test]
+    fn detects_nested_mxcell() {
+        let bad = r#"<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"><mxCell id="2"/></mxCell></root></mxGraphModel>"#;
+        assert!(validate_mx_cell_structure(bad, false)
+            .unwrap()
+            .contains("nested"));
+    }
+
+    #[test]
+    fn detects_unknown_element_strict_only() {
+        let xml = r#"<mxGraphModel><root><bogusTag/></root></mxGraphModel>"#;
+        // 非 strict 放行
+        assert!(validate_mx_cell_structure(xml, false).is_none());
+        // strict 拒绝
+        assert!(validate_mx_cell_structure(xml, true)
+            .unwrap()
+            .contains("Unknown element"));
+    }
+
+    #[test]
+    fn detects_orphan_mxpoint_strict_only() {
+        let xml =
+            r#"<mxGraphModel><root><mxCell id="0"/><mxPoint x="1" y="2"/></root></mxGraphModel>"#;
+        assert!(validate_mx_cell_structure(xml, true)
+            .unwrap()
+            .contains("mxPoint"));
+    }
+
+    #[test]
+    fn detects_text_between_tags() {
+        let bad = r#"<mxGraphModel><root><mxCell id="0"/>stray text</root></mxGraphModel>"#;
+        assert!(validate_mx_cell_structure(bad, false)
+            .unwrap()
+            .contains("between tags"));
+    }
+
+    #[test]
+    fn detects_empty_cell_id() {
+        let bad = r#"<mxGraphModel><root><mxCell id=""/></root></mxGraphModel>"#;
+        assert!(validate_mx_cell_structure(bad, false)
+            .unwrap()
+            .contains("empty id"));
+    }
+
+    #[test]
+    fn detects_syntax_error() {
+        let bad = r#"<mxGraphModel><root><mxCell id="2" value="a < b"/></root></mxGraphModel>"#;
+        assert!(validate_mx_cell_structure(bad, false)
+            .unwrap()
+            .contains("syntax error"));
+    }
+
+    #[test]
+    fn find_orphan_points_skips_arrays() {
+        // 在 <Array as="points"> 内的 mxPoint 不算孤立
+        let xml = r#"<mxCell id="e" edge="1"><mxGeometry><Array as="points"><mxPoint x="1" y="2"/></Array></mxGeometry></mxCell>"#;
+        assert!(find_orphan_mx_points(xml).is_empty());
+        // 无 as 的孤立 mxPoint 被识别
+        let orphan = r#"<mxCell id="e" edge="1"><mxPoint x="1" y="2"/></mxCell>"#;
+        assert_eq!(find_orphan_mx_points(orphan).len(), 1);
+    }
+
+    #[test]
+    fn fix_malformed_quotes_in_tag_works() {
+        let (fixed, changed) =
+            fix_malformed_quotes_in_tag(r#"<mxCell id=&quot;2&quot; value=&quot;A&quot;/>"#);
+        assert!(changed);
+        assert!(fixed.contains(r#"id="2""#));
+        assert!(fixed.contains(r#"value="A""#));
+    }
+
+    #[test]
+    fn close_slashless_compact_cells_works() {
+        // 非自闭合紧凑 cell，后跟下一个 mxCell → 补上自闭合斜杠
+        let (fixed, changed) = close_slashless_compact_cells(
+            r#"<mxCell id="2" x="1" y="2" w="3" h="4"><mxCell id="3"/>"#,
+        );
+        assert!(changed);
+        assert!(fixed.contains(r#"h="4"/>"#));
+    }
+
+    #[test]
+    fn add_missing_space_in_tag_works() {
+        let (fixed, changed) = add_missing_space_in_tag(r#"<mxCell id="2"value="A"/>"#);
+        assert!(changed);
+        assert!(fixed.contains(r#"id="2" value="A""#));
+    }
 }

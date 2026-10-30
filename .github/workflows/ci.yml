@@ -50,6 +50,24 @@ jobs:
       - name: Rustfmt
         run: cargo fmt --all --check
 
+  coverage:
+    # 行覆盖率门禁（docs/03-5 §7：纯逻辑 ≥80%）。仅 ubuntu，避免三平台重复开销。
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Coverage gate (≥80% lines, pure logic only)
+        run: cargo llvm-cov --workspace --fail-under-lines 80 --ignore-filename-regex 'src/lib.rs|src/main.rs|src/bin/|src/error.rs|src/settings.rs|src/export.rs'
+
   bundle:
     # 全量 Tauri 打包仅在 ubuntu 跑（成本考虑）；mac/win 产物走发布流程
     needs: test

@@ -354,6 +354,15 @@ pub async fn run_turn(
     let model_name = provider.model().to_string();
     let note = canvas_note(&input.canvas, session.canvas_baseline.as_deref());
     session.canvas_baseline = Some(input.canvas.full_xml.clone());
+    // NFR-7 脱敏日志：只记元信息，永不落 API key 或请求/响应体。
+    tracing::info!(
+        provider = provider.id(),
+        model = %model_name,
+        history_msgs = session.history.len(),
+        images = input.images.len(),
+        "ai turn start"
+    );
+    let started = std::time::Instant::now();
 
     let mut messages: Vec<ChatMessage> = Vec::new();
     messages.push(ChatMessage::system(get_system_prompt(
@@ -478,6 +487,14 @@ pub async fn run_turn(
     }
 
     session.history = messages;
+    tracing::info!(
+        provider = provider.id(),
+        model = %model_name,
+        diagrams = diagrams_displayed,
+        vlm = ?vlm_status,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "ai turn done"
+    );
     Ok(TurnOutcome {
         text: final_text,
         diagrams_displayed,
@@ -647,5 +664,43 @@ mod tests {
             .as_deref()
             .unwrap()
             .contains(r#"id="2""#));
+    }
+
+    fn canvas_with(xml: &str, selection: Vec<String>) -> CanvasContext {
+        CanvasContext {
+            full_xml: xml.to_string(),
+            page_id: None,
+            page_name: None,
+            page_count: 1,
+            selection,
+        }
+    }
+
+    const NONEMPTY: &str = r#"<mxfile><diagram id="p1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2" value="A" vertex="1" parent="1"/></root></mxGraphModel></diagram></mxfile>"#;
+
+    #[test]
+    fn canvas_note_empty_and_unchanged() {
+        // 空画布
+        let note = canvas_note(&canvas(), None);
+        assert!(note.contains("empty"));
+        // baseline 相同 → unchanged
+        let c = canvas_with(NONEMPTY, Vec::new());
+        let note = canvas_note(&c, Some(NONEMPTY));
+        assert!(note.contains("unchanged"));
+    }
+
+    #[test]
+    fn canvas_note_injects_selection() {
+        let c = canvas_with(NONEMPTY, vec!["2".to_string(), "3".to_string()]);
+        let note = canvas_note(&c, Some("<different/>"));
+        assert!(note.contains("[Selected cells: 2, 3]"));
+    }
+
+    #[test]
+    fn truncation_error_detected() {
+        assert!(is_truncation_error("unfinished mxCell"));
+        assert!(is_truncation_error("output cut off"));
+        assert!(is_truncation_error("truncated"));
+        assert!(!is_truncation_error("ok"));
     }
 }

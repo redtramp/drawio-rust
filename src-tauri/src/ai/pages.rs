@@ -659,3 +659,270 @@ pub fn place_on_page(drawn_xml: &str, canvas_xml: &str, page_id: Option<&str>) -
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine as _;
+    use std::io::Write;
+
+    fn two_page() -> &'static str {
+        r#"<mxfile><diagram id="p1" name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="a" value="A"/></root></mxGraphModel></diagram><diagram id="p2" name="Page-2"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="b" value="B"/></root></mxGraphModel></diagram></mxfile>"#
+    }
+
+    #[test]
+    fn detects_cells() {
+        let has = r#"<mxfile><diagram><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="2"/></root></mxGraphModel></diagram></mxfile>"#;
+        assert!(has_cells(has));
+        assert!(!has_cells(BLANK_MXFILE));
+        // UserObject 包装也算有内容
+        assert!(has_cells(
+            r#"<mxGraphModel><root><UserObject label="x"/></root></mxGraphModel>"#
+        ));
+    }
+
+    #[test]
+    fn detects_file_and_model_kinds() {
+        assert!(is_mx_file("<mxfile><diagram/></mxfile>"));
+        assert!(!is_mx_file("<mxGraphModel/>"));
+        assert!(is_mx_graph_model("<mxGraphModel><root/></mxGraphModel>"));
+        assert!(!is_mx_graph_model("<mxfile/>"));
+    }
+
+    #[test]
+    fn escapes_and_strips() {
+        assert_eq!(escape_attr("a&b<c>\"d"), "a&amp;b&lt;c&gt;&quot;d");
+        assert_eq!(
+            strip_xml_declaration(r#"<?xml version="1.0"?><mxGraphModel/>"#),
+            "<mxGraphModel/>"
+        );
+    }
+
+    #[test]
+    fn wraps_cells_into_model() {
+        let wrapped = wrap_cells_in_model(r#"<mxCell id="a" value="A"/>"#);
+        assert!(wrapped.contains("<mxGraphModel>"));
+        assert!(wrapped.contains(r#"<mxCell id="0"/>"#));
+        assert!(wrapped.contains(r#"value="A""#));
+        // 已是 model 原样返回
+        let model = "<mxGraphModel><root/></mxGraphModel>";
+        assert_eq!(wrap_cells_in_model(model), model);
+    }
+
+    #[test]
+    fn normalizes_to_mxfile() {
+        let model = r#"<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel>"#;
+        let out = normalize_to_mxfile(model, Some("page-x"), Some("My Page")).unwrap();
+        assert!(out.contains("<mxfile"));
+        assert!(out.contains(r#"id="page-x""#));
+        assert!(out.contains(r#"name="My Page""#));
+        // 已是 mxfile 原样返回
+        let file = "<mxfile><diagram/></mxfile>";
+        assert_eq!(normalize_to_mxfile(file, None, None).unwrap(), file);
+        // 空返回 None
+        assert!(normalize_to_mxfile("  ", None, None).is_none());
+    }
+
+    #[test]
+    fn parses_and_serializes() {
+        let doc = parse_mxfile("<mxfile><diagram/></mxfile>").unwrap();
+        assert_eq!(doc.name, "mxfile");
+        assert!(parse_mxfile("not xml").is_none());
+        assert!(parse_mxfile("<mxGraphModel/>").is_none());
+        assert!(serialize_mxfile(&doc).contains("<mxfile"));
+    }
+
+    #[test]
+    fn projects_single_page() {
+        let p = project_page(
+            two_page(),
+            &PageSelector {
+                page_id: Some("p2".into()),
+                ..Default::default()
+            },
+        );
+        match p {
+            PageProjection::Ok { xml, index, name } => {
+                assert_eq!(index, 1);
+                assert_eq!(name, "Page-2");
+                assert!(xml.contains(r#"id="p2""#));
+                assert!(!xml.contains(r#"id="p1""#));
+            }
+            _ => panic!("expected Ok"),
+        }
+    }
+
+    #[test]
+    fn lists_and_finds_pages() {
+        let doc = parse_mxfile(two_page()).unwrap();
+        let pages = list_pages_from_doc(&doc);
+        assert_eq!(pages.len(), 2);
+        assert_eq!(pages[0].id, "p1");
+        assert_eq!(pages[1].name, "Page-2");
+        assert_eq!(
+            find_page_element(
+                &doc,
+                &PageSelector {
+                    page_id: Some("p2".into()),
+                    ..Default::default()
+                }
+            )
+            .unwrap()
+            .0,
+            1
+        );
+        assert_eq!(
+            find_page_element(
+                &doc,
+                &PageSelector {
+                    page_name: Some("Page-1".into()),
+                    ..Default::default()
+                }
+            )
+            .unwrap()
+            .0,
+            0
+        );
+        assert_eq!(
+            find_page_element(
+                &doc,
+                &PageSelector {
+                    page_index: Some(1),
+                    ..Default::default()
+                }
+            )
+            .unwrap()
+            .0,
+            1
+        );
+        assert!(find_page_element(
+            &doc,
+            &PageSelector {
+                page_id: Some("missing".into()),
+                ..Default::default()
+            }
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn adds_renames_and_deletes_pages() {
+        let mut doc = parse_mxfile(two_page()).unwrap();
+        let p = add_page_to_doc(&mut doc, None, Some("Third"), None).unwrap();
+        assert_eq!(p.name, "Third");
+        assert_eq!(list_pages_from_doc(&doc).len(), 3);
+        // 重复 id 拒绝
+        assert!(add_page_to_doc(&mut doc, Some("p1"), None, None).is_err());
+        // 非法 xml 拒绝
+        assert!(add_page_to_doc(&mut doc, None, None, Some("<mxfile/>")).is_err());
+        // 重命名
+        assert!(rename_page_in_doc(
+            &mut doc,
+            &PageSelector {
+                page_id: Some("p2".into()),
+                ..Default::default()
+            },
+            "Renamed"
+        ));
+        // 删除
+        let (id, _idx) = delete_page_from_doc(
+            &mut doc,
+            &PageSelector {
+                page_id: Some("p2".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(id, "p2");
+        assert_eq!(list_pages_from_doc(&doc).len(), 2);
+    }
+
+    #[test]
+    fn rejects_deleting_last_page() {
+        let mut doc = parse_mxfile(BLANK_MXFILE).unwrap();
+        assert!(delete_page_from_doc(
+            &mut doc,
+            &PageSelector {
+                page_id: Some("page-1".into()),
+                ..Default::default()
+            }
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn decompresses_page_content() {
+        let xml = r#"<mxGraphModel><root><mxCell id="0"/></root></mxGraphModel>"#;
+        let mut enc =
+            flate2::write::DeflateEncoder::new(Vec::new(), flate2::Compression::default());
+        enc.write_all(xml.as_bytes()).unwrap();
+        let compressed = enc.finish().unwrap();
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&compressed);
+        let out = decompress_page_content(&b64).unwrap();
+        assert!(out.contains("<mxGraphModel"));
+        // 非 base64 返回 None
+        assert!(decompress_page_content("!!!not base64!!!").is_none());
+    }
+
+    #[test]
+    fn uri_decodes_partially() {
+        assert_eq!(uri_decode("hello%20world").unwrap(), "hello world");
+        assert!(uri_decode("bad%").is_none());
+        assert!(uri_decode("bad%zz").is_none());
+    }
+
+    #[test]
+    fn gets_page_model_xml() {
+        let model = page_model_xml(two_page(), Some("p1")).unwrap();
+        assert!(model.contains("<mxGraphModel"));
+        assert!(model.contains(r#"value="A""#));
+        // 裸 model 原样返回
+        let bare = "<mxGraphModel><root/></mxGraphModel>";
+        assert_eq!(page_model_xml(bare, None).unwrap(), bare);
+    }
+
+    #[test]
+    fn selects_page_for_id() {
+        let sel = page_selector_for(two_page(), Some("p2"));
+        assert_eq!(sel.page_id.as_deref(), Some("p2"));
+        // 不存在则回退默认
+        let sel = page_selector_for(two_page(), Some("nope"));
+        assert!(sel.page_id.is_none());
+    }
+
+    #[test]
+    fn replaces_page_model_keeping_others() {
+        let new_model = r#"<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="new" value="N"/></root></mxGraphModel>"#;
+        let out = replace_page_model(two_page(), Some("p1"), new_model).unwrap();
+        assert!(out.contains(r#"value="N""#));
+        assert!(out.contains(r#"value="B""#)); // 其他页保留
+        assert!(!out.contains(r#"value="A""#)); // 旧页被替换
+                                                // 非法 model 报错
+        assert!(replace_page_model(two_page(), None, "not a model").is_err());
+    }
+
+    #[test]
+    fn places_single_page_onto_canvas() {
+        let drawn = r#"<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="x" value="X"/></root></mxGraphModel>"#;
+        let out = place_on_page(drawn, two_page(), Some("p2"));
+        assert!(out.contains(r#"value="X""#));
+        assert!(out.contains(r#"value="A""#)); // p1 保留
+    }
+
+    #[test]
+    fn file_vars_and_page_name() {
+        let doc = parse_mxfile(two_page()).unwrap();
+        assert!(file_vars(&doc).is_none());
+        let with_vars = r#"<mxfile vars="%name%"><diagram id="p1" name="X"><mxGraphModel><root/></mxGraphModel></diagram></mxfile>"#;
+        assert_eq!(
+            file_vars(&parse_mxfile(with_vars).unwrap()).as_deref(),
+            Some("%name%")
+        );
+        // 多页才有页名
+        assert_eq!(
+            page_name_of(two_page(), Some("p2")).as_deref(),
+            Some("Page-2")
+        );
+        assert!(page_name_of(BLANK_MXFILE, None).is_none());
+    }
+}

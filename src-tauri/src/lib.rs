@@ -608,17 +608,32 @@ fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 pub fn run() {
-    // NFR-7 可观测性：AI 调用/校验/重试日志（env filter 可调 RUST_LOG）。
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
-        .init();
-
+    // NFR-7 可观测性：日志同时写 stdout 与 data_dir/logs/（按日滚动），
+    // env filter 用 RUST_LOG 可调。日志只含元信息（provider/model/耗时），
+    // API key 与请求/响应体永不落日志（脱敏见 orchestrator 层）。
     let data_dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("drawio-rust");
+    let log_dir = data_dir.join("logs");
+    let _ = std::fs::create_dir_all(&log_dir);
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "drawio-rust.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // 应用生命周期内保持 worker 存活（泄漏小对象，进程退出时由 OS 回收）。
+    std::mem::forget(_guard);
+
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_writer(non_blocking)
+                .with_ansi(false),
+        )
+        .init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

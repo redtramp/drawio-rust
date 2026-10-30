@@ -113,4 +113,36 @@ mod tests {
         assert!(text.contains("overlap"));
         assert!(text.contains("move it"));
     }
+
+    #[test]
+    fn feedback_handles_warnings_and_empty() {
+        // 仅 warning，无 critical
+        let result = ValidationResult {
+            valid: true,
+            issues: vec![ValidationIssue {
+                issue_type: "text".into(),
+                severity: "warning".into(),
+                description: "small text".into(),
+            }],
+            suggestions: vec![],
+        };
+        let text = format_validation_feedback(&result);
+        assert!(text.contains("Warnings:"));
+        assert!(!text.contains("Critical Issues"));
+        // 空 issues + 空 suggestions 也不 panic
+        let empty = ValidationResult {
+            valid: false,
+            issues: vec![],
+            suggestions: vec![],
+        };
+        assert!(format_validation_feedback(&empty).contains("VALIDATION FAILED"));
+    }
+
+    #[test]
+    fn schema_has_required_fields() {
+        let schema = validation_schema();
+        let required = schema["required"].as_array().unwrap();
+        assert!(required.iter().any(|r| r == "valid"));
+        assert!(schema["properties"]["issues"]["items"]["required"].is_array());
+    }
 }

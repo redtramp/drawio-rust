@@ -10,17 +10,17 @@
 
 | 编号 | 文档 | 内容 | 读者 | 状态 |
 |------|------|------|------|------|
-| — | [README.md](README.md) | 文档总览与导航（本页） | 所有人 | 草案 |
-| 01 | [需求分析](01-requirements.md) | 背景、目标、功能/非功能需求、约束、分期范围（MVP→v1.0） | 产品/架构 | 草案 |
-| 02 | [总体架构](02-architecture.md) | 技术选型、分层与模块图、关键架构决策（ADR）、核心数据流、仓库布局 | 架构/后端/前端 | 草案 |
-| 03.1 | [AI 生成模块](03-module-design/03-1-ai-engine.md) | 工具协议、系统提示词、结构校验/自动修复、VLM 视觉校验、重试状态机、Provider 抽象 | 后端 | 草案 |
-| 03.2 | [编辑器集成](03-module-design/03-2-editor-integration.md) | iframe 嵌入 draw.io、postMessage 协议、同源桥接（undo/选区/高亮）、导出 | 前端/后端 | 草案 |
-| 03.3 | [Visio 导出模块](03-module-design/03-3-visio-export.md) | foreignObject→text 转换算法、Rust 实现、导出管线 | 后端 | 草案 |
-| 03.4 | [前端框架](03-module-design/03-4-frontend.md) | Svelte 5 应用结构、布局、聊天面板、状态管理、设置 | 前端 | 草案 |
-| 03.5 | [后端服务](03-module-design/03-5-backend.md) | Rust crate 结构、AI 编排、文档服务、导出服务、同步工具、Tauri 命令 | 后端 | 草案 |
-| 04 | [接口与协议](04-interfaces-and-protocols.md) | Tauri 命令/事件、postMessage 协议、LLM 工具 Schema、同步清单格式 | 前后端 | 草案 |
-| 05 | [实施计划](05-implementation-plan.md) | 分步（one-PR 粒度）实施计划：依赖、并行、验证命令、退出标准、回滚 | 全体/交付 | 草案 |
-| 06 | [上游同步机制](06-upstream-sync.md) | 三级同步（vendor/文本/逻辑）、同步清单、`drawio-sync` 工具设计、工作流 | 后端/运维 | 草案 |
+| — | [README.md](README.md) | 文档总览与导航（本页） | 所有人 | 已定稿 |
+| 01 | [需求分析](01-requirements.md) | 背景、目标、功能/非功能需求、约束、分期范围（MVP→v1.0） | 产品/架构 | 已定稿 |
+| 02 | [总体架构](02-architecture.md) | 技术选型、分层与模块图、关键架构决策（ADR）、核心数据流、仓库布局 | 架构/后端/前端 | 已定稿 |
+| 03.1 | [AI 生成模块](03-module-design/03-1-ai-engine.md) | 工具协议、系统提示词、结构校验/自动修复、VLM 视觉校验、重试状态机、Provider 抽象 | 后端 | 已定稿 |
+| 03.2 | [编辑器集成](03-module-design/03-2-editor-integration.md) | iframe 嵌入 draw.io、postMessage 协议、同源桥接（undo/选区/高亮）、导出 | 前端/后端 | 已定稿 |
+| 03.3 | [Visio 导出模块](03-module-design/03-3-visio-export.md) | foreignObject→text 转换算法、Rust 实现、导出管线 | 后端 | 已定稿 |
+| 03.4 | [前端框架](03-module-design/03-4-frontend.md) | Svelte 5 应用结构、布局、聊天面板、状态管理、设置 | 前端 | 已定稿 |
+| 03.5 | [后端服务](03-module-design/03-5-backend.md) | Rust crate 结构、AI 编排、文档服务、导出服务、同步工具、Tauri 命令 | 后端 | 已定稿 |
+| 04 | [接口与协议](04-interfaces-and-protocols.md) | Tauri 命令/事件、postMessage 协议、LLM 工具 Schema、同步清单格式 | 前后端 | 已定稿 |
+| 05 | [实施计划](05-implementation-plan.md) | 分步（one-PR 粒度）实施计划：依赖、并行、验证命令、退出标准、回滚 | 全体/交付 | 已定稿 |
+| 06 | [上游同步机制](06-upstream-sync.md) | 三级同步（vendor/文本/逻辑）、同步清单、`drawio-sync` 工具设计、工作流 | 后端/运维 | 已定稿 |
 | 07.1 | [调研：drawio](07-research/07-1-drawio.md) | draw.io 源码布局、内核、构建、导出管线、可嵌入性、许可 | 架构 | 已完成 |
 | 07.2 | [调研：next-ai-draw-io](07-research/07-2-next-ai-draw-io.md) | AI 管线、工具协议、校验、编辑器桥接、可移植性分类 | 后端/前端 | 已完成 |
 | 07.3 | [调研：drawio-to-visio](07-research/07-3-drawio-to-visio.md) | Visio 兼容转换问题与算法、可移植性 | 后端 | 已完成 |
