@@ -7,6 +7,7 @@
     modelTest,
     type ProviderEntry,
   } from "$lib/aiClient";
+  import { t } from "$lib/stores/i18n";
 
   let { onclose }: { onclose: () => void } = $props();
 
@@ -61,22 +62,22 @@
 
 <div class="fixed inset-0 z-50 grid place-items-center bg-black/40" onclick={(e) => e.target === e.currentTarget && onclose()}>
   <div class="w-[460px] rounded-xl border border-outline bg-panel p-5 shadow-xl">
-    <h2 class="mb-4 text-base font-semibold">模型设置</h2>
+    <h2 class="mb-4 text-base font-semibold">{t("settings.title")}</h2>
 
-    <label class="mb-2 block text-xs text-soft">Provider</label>
+    <label class="mb-2 block text-xs text-soft">{t("settings.provider")}</label>
     <select class="field mb-3" bind:value={providerId}>
       {#each providers as p}
         <option value={p.id}>{p.name}</option>
       {/each}
     </select>
 
-    <label class="mb-2 block text-xs text-soft">模型</label>
+    <label class="mb-2 block text-xs text-soft">{t("settings.model")}</label>
     <input class="field mb-3" bind:value={model} placeholder={selected?.default_model ?? "model"} />
 
-    <label class="mb-2 block text-xs text-soft">Base URL（留空用默认 {selected?.default_base_url ?? ""}）</label>
+    <label class="mb-2 block text-xs text-soft">{t("settings.baseUrl")}（留空用默认 {selected?.default_base_url ?? ""}）</label>
     <input class="field mb-3" bind:value={baseUrl} placeholder={selected?.default_base_url ?? ""} />
 
-    <label class="mb-2 block text-xs text-soft">API Key（{selected?.api_key_label ?? ""}，留空不修改）</label>
+    <label class="mb-2 block text-xs text-soft">{t("settings.apiKey")}（{selected?.api_key_label ?? ""}，留空不修改）</label>
     <input class="field mb-3" type="password" bind:value={apiKey} placeholder="sk-…" />
 
     {#if testResult}
@@ -84,9 +85,9 @@
     {/if}
 
     <div class="flex justify-end gap-2">
-      <button class="btn" onclick={() => onclose()}>取消</button>
-      <button class="btn" onclick={test} disabled={testing}>{testing ? "测试中…" : "测试连接"}</button>
-      <button class="btn-primary" onclick={save}>保存</button>
+      <button class="btn" onclick={() => onclose()}>{t("settings.cancel")}</button>
+      <button class="btn" onclick={test} disabled={testing}>{testing ? "测试中…" : t("settings.test")}</button>
+      <button class="btn-primary" onclick={save}>{t("settings.save")}</button>
     </div>
   </div>
 </div>

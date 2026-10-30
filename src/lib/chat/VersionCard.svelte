@@ -7,6 +7,7 @@
     type VersionSnapshot,
   } from "$lib/aiClient";
   import { setDrawioXml, requestReload } from "$lib/stores/canvas.svelte";
+  import { t } from "$lib/stores/i18n";
 
   let versions = $state<VersionSnapshot[]>([]);
   let restoring = $state(false);
@@ -24,8 +25,8 @@
   });
 
   function labelText(v: VersionSnapshot): string {
-    if (v.fromScratch) return "初始生成";
-    return v.label === "edit_diagram" ? "编辑" : "生成";
+    if (v.fromScratch) return t("versions.initial");
+    return v.label === "edit_diagram" ? t("versions.edit") : t("versions.generate");
   }
 
   function diffText(v: VersionSnapshot): string {
@@ -37,7 +38,7 @@
     if (s.edgesAdded) parts.push(`+${s.edgesAdded} 边`);
     if (s.edgesRemoved) parts.push(`-${s.edgesRemoved} 边`);
     if (s.edgesChanged) parts.push(`~${s.edgesChanged} 边`);
-    return parts.length ? parts.join(" ") : "无变化";
+    return parts.length ? parts.join(" ") : t("versions.unchanged");
   }
 
   async function restore(v: VersionSnapshot) {
@@ -58,8 +59,8 @@
 
 <div class="space-y-1 border-b border-outline p-2">
   <div class="flex items-center justify-between px-1">
-    <span class="text-xs font-semibold text-soft">版本历史</span>
-    <button class="text-xs text-accent" onclick={refresh}>刷新</button>
+    <span class="text-xs font-semibold text-soft">{t("versions.title")}</span>
+    <button class="text-xs text-accent" onclick={refresh}>{t("versions.refresh")}</button>
   </div>
 
   {#if error}
@@ -67,7 +68,7 @@
   {/if}
 
   {#if versions.length === 0}
-    <p class="px-1 text-xs text-soft">尚无版本——发送一条绘图指令后自动记录。</p>
+    <p class="px-1 text-xs text-soft">{t("versions.empty")}</p>
   {/if}
 
   {#each versions as v}
@@ -76,7 +77,7 @@
         <span class="text-xs font-medium">#{v.seq} {labelText(v)}</span>
         <span class="ml-1 text-[11px] text-soft">{diffText(v)}</span>
       </div>
-      <button class="chip" onclick={() => restore(v)} disabled={restoring}>恢复</button>
+      <button class="chip" onclick={() => restore(v)} disabled={restoring}>{t("versions.restore")}</button>
     </div>
   {/each}
 </div>

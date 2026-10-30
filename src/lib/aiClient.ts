@@ -85,6 +85,7 @@ export interface Settings {
   export: { scale: number; border: number; transparent: boolean };
   ui: { lang: string; theme: string };
   sync: { auto_check: boolean };
+  onboarded: boolean;
 }
 
 export function settingsSave(s: {
@@ -166,4 +167,13 @@ export function versionRestore(id: string): Promise<string> {
 export async function onVersionNew(handler: (v: VersionSnapshot) => void): Promise<() => void> {
   const un = await listen("version_new", (e) => handler(e.payload as VersionSnapshot));
   return () => un();
+}
+
+export interface ChatRecord {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export function sessionHistory(sessionId: string): Promise<ChatRecord[]> {
+  return invoke("session_history", { sessionId });
 }

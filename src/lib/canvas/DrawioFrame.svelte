@@ -4,6 +4,7 @@
   import { DrawioBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
   import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave } from "$lib/aiClient";
   import { getDrawioXml, setDrawioXml, reloadTick } from "$lib/stores/canvas.svelte";
+  import { t } from "$lib/stores/i18n";
 
   let frame: HTMLIFrameElement;
   let bridge: DrawioBridge | undefined;
@@ -135,14 +136,14 @@
 
   {#if !ready}
     <div class="absolute inset-0 grid place-items-center bg-surface/80 text-soft">
-      加载编辑器…
+      {t("canvas.loading")}
     </div>
   {/if}
 
   <div class="absolute right-2 top-2 flex gap-1">
-    <button class="chip" onclick={() => doOpen()}>打开</button>
-    <button class="chip" onclick={() => doSave()}>保存</button>
-    <button class="chip" onclick={() => doLoad()}>刷新</button>
+    <button class="chip" onclick={() => doOpen()}>{t("canvas.open")}</button>
+    <button class="chip" onclick={() => doSave()}>{t("canvas.save")}</button>
+    <button class="chip" onclick={() => doLoad()}>{t("canvas.refresh")}</button>
     <button class="chip" onclick={() => doExport("png")} disabled={exporting}>PNG</button>
     <button class="chip" onclick={() => doExport("svg")} disabled={exporting}>SVG</button>
     <button class="chip" onclick={() => doExport("xml")} disabled={exporting}>.drawio</button>

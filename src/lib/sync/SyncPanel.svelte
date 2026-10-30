@@ -1,5 +1,6 @@
 <script lang="ts">
   import { syncStatus, syncRun } from "$lib/aiClient";
+  import { t } from "$lib/stores/i18n";
 
   let { onclose }: { onclose: () => void } = $props();
   let report = $state<any>(null);
@@ -31,7 +32,7 @@
 
 <div class="fixed inset-0 z-50 grid place-items-center bg-black/40" onclick={(e) => e.target === e.currentTarget && onclose()}>
   <div class="w-[520px] rounded-xl border border-outline bg-panel p-5 shadow-xl">
-    <h2 class="mb-1 text-base font-semibold">上游同步</h2>
+    <h2 class="mb-1 text-base font-semibold">{t("sync.title")}</h2>
     <p class="mb-4 text-xs text-soft">
       检测 draw.io / next-ai-draw-io / drawio-to-visio 的漂移；L1 vendor 换版、L2 资产覆盖、
       L3 逻辑变更仅报告（永不自动合并，见 docs/06）。
@@ -39,12 +40,12 @@
 
     <label class="mb-3 flex items-center gap-2 text-sm">
       <input type="checkbox" bind:checked={dryRun} />
-      dry-run（只检测不写入）
+      {t("sync.dryrun")}
     </label>
 
     <div class="mb-4 flex gap-2">
-      <button class="btn" onclick={status} disabled={running}>查看状态</button>
-      <button class="btn-primary" onclick={run} disabled={running}>{running ? "运行中…" : "执行同步"}</button>
+      <button class="btn" onclick={status} disabled={running}>{t("sync.status")}</button>
+      <button class="btn-primary" onclick={run} disabled={running}>{running ? "运行中…" : t("sync.run")}</button>
     </div>
 
     {#if report?.error}
@@ -57,7 +58,7 @@
           <div class="rounded-md border border-outline bg-surface p-2 text-xs">
             <div class="flex items-center justify-between">
               <span class="font-semibold">{u.id}</span>
-              <span class={u.drift ? "text-warn" : "text-ok"}>{u.drift ? "有漂移" : "已最新"}</span>
+              <span class={u.drift ? "text-warn" : "text-ok"}>{u.drift ? t("sync.drift") : t("sync.uptodate")}</span>
             </div>
             <div class="mt-1 text-soft">
               head {u.upstream_head?.slice(0, 8) ?? ""} ·

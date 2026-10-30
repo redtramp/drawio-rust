@@ -226,6 +226,12 @@ fn version_restore(state: State<'_, AppState>, id: String) -> Result<String, Str
         .ok_or_else(|| format!("version {id} not found"))
 }
 
+/// 会话历史（messages.jsonl），按时间顺序。
+#[tauri::command]
+fn session_history(state: State<'_, AppState>, session_id: String) -> Vec<session::ChatRecord> {
+    session::load_messages(&state.data_dir, &session_id)
+}
+
 #[derive(Serialize)]
 pub struct TurnInfo {
     turn_id: String,
@@ -287,6 +293,16 @@ async fn ai_chat_send(
             .clone()
     };
 
+    // 会话恢复：持久化 user 消息（assistant 文本在 Done 事件时落盘）
+    let _ = session::append_message(
+        &state.data_dir,
+        &session_id,
+        &session::ChatRecord {
+            role: "user".to_string(),
+            content: message.clone(),
+        },
+    );
+
     let channels = state.channels.clone();
     let bridge = TauriBridge {
         app: app.clone(),
@@ -298,6 +314,8 @@ async fn ai_chat_send(
         let app = app.clone();
         let turn_id = turn_id.clone();
         let versions = state.versions.clone();
+        let data_dir = state.data_dir.clone();
+        let session_id = session_id.clone();
         Arc::new(move |ev: TurnEvent| match ev {
             TurnEvent::Token(t) => {
                 let _ = app.emit(
@@ -356,6 +374,17 @@ async fn ai_chat_send(
             }
             TurnEvent::Done { text } => {
                 let _ = app.emit("ai_turn_done", json!({ "turn_id": turn_id, "text": text }));
+                // 会话恢复：持久化 assistant 最终文本
+                if !text.is_empty() {
+                    let _ = session::append_message(
+                        &data_dir,
+                        &session_id,
+                        &session::ChatRecord {
+                            role: "assistant".to_string(),
+                            content: text,
+                        },
+                    );
+                }
             }
         }) as Arc<dyn Fn(TurnEvent) + Send + Sync>
     };
@@ -450,6 +479,7 @@ async fn settings_save(
     s.provider.base_url = base_url;
     s.provider.validation_provider_id = validation_provider_id;
     s.provider.validation_model = validation_model;
+    s.onboarded = true;
     s.save(&state.data_dir)?;
     if let Some(key) = api_key {
         if !key.is_empty() {
@@ -566,6 +596,7 @@ pub fn run() {
             file_save,
             versions_list,
             version_restore,
+            session_history,
             ai_chat_send,
             ai_turn_cancel,
             ai_submit,

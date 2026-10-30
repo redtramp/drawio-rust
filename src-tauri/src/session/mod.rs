@@ -4,9 +4,13 @@
 //! 相对上一版的 cell 级 diff 计数（供版本卡展示「对比」）。磁盘持久化（会话
 //! 恢复）见 S11。
 
-use serde::Serialize;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
 
 use crate::ai::diff::{diff_diagrams, is_same_document, ChangeSummary};
+use crate::error::Error;
 
 /// 版本快照上限（对齐 next-ai-draw-io 的版本策略，ADR-8）。
 pub const MAX_VERSIONS: usize = 20;
@@ -98,6 +102,50 @@ impl VersionStore {
     pub fn is_empty(&self) -> bool {
         self.snapshots.is_empty()
     }
+}
+
+/// 会话消息记录（用于恢复聊天面板展示，S11）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatRecord {
+    pub role: String, // "user" | "assistant"
+    pub content: String,
+}
+
+/// 会话消息日志路径：`<data_dir>/sessions/<id>/messages.jsonl`。
+pub fn messages_path(data_dir: &Path, session_id: &str) -> PathBuf {
+    data_dir
+        .join("sessions")
+        .join(session_id)
+        .join("messages.jsonl")
+}
+
+/// 追加一行消息记录（每行一条 JSON）。
+pub fn append_message(data_dir: &Path, session_id: &str, record: &ChatRecord) -> Result<(), Error> {
+    let path = messages_path(data_dir, session_id);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(Error::Io)?;
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(Error::Io)?;
+    let line = serde_json::to_string(record).map_err(Error::Json)?;
+    writeln!(file, "{line}").map_err(Error::Io)?;
+    Ok(())
+}
+
+/// 读取会话消息记录（损坏行跳过，保证恢复鲁棒）。
+pub fn load_messages(data_dir: &Path, session_id: &str) -> Vec<ChatRecord> {
+    let path = messages_path(data_dir, session_id);
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    content
+        .lines()
+        .filter_map(|line| serde_json::from_str::<ChatRecord>(line).ok())
+        .collect()
 }
 
 #[cfg(test)]

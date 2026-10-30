@@ -46,6 +46,13 @@ pub struct Settings {
     pub export: ExportDefaults,
     pub ui: UiSettings,
     pub sync: SyncSettings,
+    /// 首次引导是否完成（false 时前端弹出 Provider 配置向导）。
+    #[serde(default = "default_false")]
+    pub onboarded: bool,
+}
+
+fn default_false() -> bool {
+    false
 }
 
 impl Default for Settings {
@@ -69,6 +76,7 @@ impl Default for Settings {
                 theme: "system".to_string(),
             },
             sync: SyncSettings { auto_check: true },
+            onboarded: false,
         }
     }
 }
