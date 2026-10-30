@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { sendChat, onAiEvents, sessionHistory } from "$lib/aiClient";
-  import { getDrawioXml } from "$lib/stores/canvas.svelte";
+  import { getDrawioXml, getSelectedIds } from "$lib/stores/canvas.svelte";
   import { t } from "$lib/stores/i18n";
   import VersionCard from "$lib/chat/VersionCard.svelte";
 
@@ -68,7 +68,7 @@
     const canvas = {
       full_xml: getDrawioXml() ?? BLANK,
       page_count: 1,
-      selection: [],
+      selection: getSelectedIds(),
     };
     try {
       await sendChat(sessionId, text, canvas);

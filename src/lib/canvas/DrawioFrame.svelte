@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { open, save } from "@tauri-apps/plugin-dialog";
-  import { DrawioBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
+  import { DrawioBridge, SameOriginBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
   import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave, settingsGet } from "$lib/aiClient";
-  import { getDrawioXml, setDrawioXml, reloadTick } from "$lib/stores/canvas.svelte";
+  import { getDrawioXml, setDrawioXml, reloadTick, setSelectedIds } from "$lib/stores/canvas.svelte";
   import { t } from "$lib/stores/i18n";
 
   let frame: HTMLIFrameElement;
   let bridge: DrawioBridge | undefined;
+  let sameOrigin = new SameOriginBridge();
   let ready = $state(false);
   let exporting = $state(false);
   // FR-X3：导出默认参数（scale/border）来自 settings.export。
@@ -35,13 +36,21 @@
       ready = true;
       const cached = getDrawioXml();
       if (cached) bridge?.load(cached);
+      startSameOriginWatch();
     });
     bridge.onSave((xml) => setDrawioXml(xml));
 
     onAiEvents(async (event, payload) => {
       const p = payload as Record<string, unknown>;
       if (event === "ai_tool_result") {
-        bridge?.load(p.xml as string);
+        const xml = p.xml as string;
+        const touched = (p.touched_ids as string[]) ?? [];
+        // FR-E4：优先单步 undo（ReplaceDiagram）；失败降级 postMessage 整段 load
+        if (!sameOrigin.commitDiagram(xml)) {
+          bridge?.load(xml);
+        }
+        // FR-A8：高亮本次改动触及的 cell
+        sameOrigin.highlightCells(touched);
       } else if (event === "ai_request") {
         const kind = p.kind as string;
         const turn_id = p.turn_id as string;
@@ -60,6 +69,35 @@
       }
     });
   });
+
+  // 轮询 draw.io 的 EditorUi 就绪后，hook 拿实例并采集选中（FR-E6）。
+  function startSameOriginWatch() {
+    const startedAt = Date.now();
+    const poll = setInterval(() => {
+      const fw = frame?.contentWindow;
+      if (!fw) return;
+      let hasEditor = false;
+      try {
+        hasEditor = fw.location.href !== "about:blank" && !!(fw as any).EditorUi;
+      } catch {
+        clearInterval(poll); // 跨域，放弃同源桥接
+        return;
+      }
+      if (hasEditor) {
+        clearInterval(poll);
+        sameOrigin.watchForEditorUi(fw, (ui) => {
+          if (sameOrigin.hasEditor()) return;
+          sameOrigin.attach(ui, fw);
+          sameOrigin.onSelectionChange(() => {
+            setSelectedIds(sameOrigin.readSelection().map((c) => c.id));
+          });
+          setSelectedIds(sameOrigin.readSelection().map((c) => c.id));
+        });
+      } else if (Date.now() - startedAt > 60_000) {
+        clearInterval(poll);
+      }
+    }, 50);
+  }
 
   async function doExport(format: "png" | "svg" | "xml" | "visio-svg" | "pdf") {
     if (!bridge || exporting) return;

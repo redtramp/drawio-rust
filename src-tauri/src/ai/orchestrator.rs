@@ -10,7 +10,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 
 use super::compact_cells::fold_cells;
-use super::diff::is_same_document;
+use super::diff::{diff_diagrams, is_same_document};
 use super::edit::{edit_diagram, DiagramOperation};
 use super::embedded_images::{hide_image_data, image_ref_note};
 use super::pages::{page_model_xml, place_on_page, PageSelector};
@@ -75,6 +75,8 @@ pub enum TurnEvent {
         xml: String,
         op: DiagramOp,
         page_name: Option<String>,
+        /// 本次改动触及的 cell id（供前端高亮，FR-A8）。
+        touched_ids: Vec<String>,
     },
     Vlm {
         status: VlmStatus,
@@ -123,7 +125,7 @@ fn args_preview(arguments_json: &str, max: usize) -> String {
 fn canvas_note(canvas: &CanvasContext, baseline: Option<&str>) -> String {
     let page_xml = page_model_xml(&canvas.full_xml, canvas.page_id.as_deref()).unwrap_or_default();
     let empty = page_xml.trim().is_empty() || !super::pages::has_cells(&canvas.full_xml);
-    match baseline {
+    let mut note = match baseline {
         None => {
             if empty {
                 "[Canvas: empty, nothing is drawn yet.]".to_string()
@@ -141,7 +143,13 @@ fn canvas_note(canvas: &CanvasContext, baseline: Option<&str>) -> String {
             let note = image_ref_note(&folded);
             format!("[Canvas when this message was sent:]\n{folded}\n{note}")
         }
+    };
+    // FR-E6：告知模型用户当前选中的 shape，供「改选中」。
+    if !canvas.selection.is_empty() {
+        let ids = canvas.selection.join(", ");
+        note.push_str(&format!("\n[Selected cells: {ids}]"));
     }
+    note
 }
 
 /// 执行一个工具调用。
@@ -163,13 +171,17 @@ fn execute_tool(
                 );
                 match prepared {
                     NewDiagram::Ok { xml, .. } => {
+                        let before = current_doc.clone();
                         let placed = place_on_page(&xml, current_doc, canvas.page_id.as_deref());
+                        let touched =
+                            diff_diagrams(&before, &placed, canvas.page_id.as_deref()).touched_ids;
                         *current_doc = placed.clone();
                         session.canvas_baseline = Some(placed.clone());
                         on_event(TurnEvent::DiagramReady {
                             xml: placed.clone(),
                             op: DiagramOp::Display,
                             page_name: canvas.page_name.clone(),
+                            touched_ids: touched,
                         });
                         Ok(ToolExecution::Diagram)
                     }
@@ -184,6 +196,8 @@ fn execute_tool(
                 };
                 match edit_diagram(&current, &operations, &selector, &mut session.images) {
                     super::edit::EditOutcome::Ok { xml, unchanged, .. } => {
+                        let touched =
+                            diff_diagrams(&current, &xml, canvas.page_id.as_deref()).touched_ids;
                         *current_doc = xml.clone();
                         session.canvas_baseline = Some(xml.clone());
                         on_event(TurnEvent::DiagramReady {
@@ -193,6 +207,7 @@ fn execute_tool(
                                 unchanged: unchanged.clone(),
                             },
                             page_name: canvas.page_name.clone(),
+                            touched_ids: touched,
                         });
                         Ok(ToolExecution::Diagram)
                     }
@@ -212,13 +227,17 @@ fn execute_tool(
                     canvas.page_name.as_deref(),
                 ) {
                     NewDiagram::Ok { xml, .. } => {
+                        let before = current_doc.clone();
                         let placed = place_on_page(&xml, current_doc, canvas.page_id.as_deref());
+                        let touched =
+                            diff_diagrams(&before, &placed, canvas.page_id.as_deref()).touched_ids;
                         *current_doc = placed.clone();
                         session.canvas_baseline = Some(placed.clone());
                         on_event(TurnEvent::DiagramReady {
                             xml: placed.clone(),
                             op: DiagramOp::Display,
                             page_name: canvas.page_name.clone(),
+                            touched_ids: touched,
                         });
                         Ok(ToolExecution::Diagram)
                     }

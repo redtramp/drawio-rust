@@ -332,7 +332,12 @@ async fn ai_chat_send(
             TurnEvent::ToolCall { name, args_preview } => {
                 let _ = app.emit("ai_stream", json!({ "turn_id": turn_id, "kind": "tool_call", "tool": name, "args": args_preview }));
             }
-            TurnEvent::DiagramReady { xml, op, page_name } => {
+            TurnEvent::DiagramReady {
+                xml,
+                op,
+                page_name,
+                touched_ids,
+            } => {
                 let (op_json, label) = match op {
                     DiagramOp::Display => (json!({ "tool": "display_diagram" }), "display_diagram"),
                     DiagramOp::Edit {
@@ -347,7 +352,12 @@ async fn ai_chat_send(
                         "edit_diagram",
                     ),
                 };
-                let mut payload = json!({ "turn_id": turn_id, "xml": xml, "page_name": page_name });
+                let mut payload = json!({
+                    "turn_id": turn_id,
+                    "xml": xml,
+                    "page_name": page_name,
+                    "touched_ids": touched_ids,
+                });
                 if let Some(obj) = payload.as_object_mut() {
                     obj.extend(op_json.as_object().unwrap().clone());
                 }
