@@ -46,7 +46,10 @@
         const xml = p.xml as string;
         const touched = (p.touched_ids as string[]) ?? [];
         // FR-E4：优先单步 undo（ReplaceDiagram）；失败降级 postMessage 整段 load
-        if (!sameOrigin.commitDiagram(xml)) {
+        if (sameOrigin.commitDiagram(xml)) {
+          bridge?.setCachedXml(xml);
+          setDrawioXml(xml);
+        } else {
           bridge?.load(xml);
         }
         // FR-A8：高亮本次改动触及的 cell

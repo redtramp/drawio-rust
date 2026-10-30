@@ -75,6 +75,11 @@ export class DrawioBridge {
     this.post("load", { xml, autosave: 1 });
   }
 
+  /** 同源直控改画布后同步缓存（避免 getXml 返回旧值）。 */
+  setCachedXml(xml: string) {
+    this.currentXml = xml;
+  }
+
   export(format: DrawioFormat, opts: ExportOptions = {}): Promise<string> {
     return new Promise((resolve) => {
       this.pending.set(format, resolve);
