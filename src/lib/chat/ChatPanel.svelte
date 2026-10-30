@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { sendChat, onAiEvents, sessionHistory, type UploadedImage } from "$lib/aiClient";
-  import { getDrawioXml, getSelectedIds } from "$lib/stores/canvas.svelte";
+  import { getDrawioXml, getSelectedIds, chatFocusTick } from "$lib/stores/canvas.svelte";
   import { t } from "$lib/stores/i18n.svelte";
   import VersionCard from "$lib/chat/VersionCard.svelte";
 
@@ -23,6 +23,13 @@
   // FR-A7：待发送的上传图片
   let pendingImages = $state<UploadedImage[]>([]);
   let fileInput: HTMLInputElement;
+  let chatInput: HTMLInputElement;
+
+  // AI 菜单项聚焦：draw.io 内点击后自增信号，聚焦聊天输入框。
+  $effect(() => {
+    void chatFocusTick.n;
+    queueMicrotask(() => chatInput?.focus());
+  });
 
   onMount(async () => {
     // 会话恢复：加载历史消息
@@ -206,6 +213,7 @@
       <input
         class="min-w-0 flex-1 rounded-md border border-outline bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent"
         placeholder={t("chat.placeholder")}
+        bind:this={chatInput}
         bind:value={input}
         onkeydown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {

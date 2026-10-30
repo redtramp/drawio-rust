@@ -3,7 +3,7 @@
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { DrawioBridge, SameOriginBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
   import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave, settingsGet } from "$lib/aiClient";
-  import { getDrawioXml, setDrawioXml, reloadTick, setSelectedIds } from "$lib/stores/canvas.svelte";
+  import { getDrawioXml, setDrawioXml, reloadTick, setSelectedIds, requestChatFocus } from "$lib/stores/canvas.svelte";
   import { t } from "$lib/stores/i18n.svelte";
 
   let frame: HTMLIFrameElement;
@@ -20,8 +20,18 @@
     void reloadTick.n;
     if (!bridge || !ready) return;
     const xml = getDrawioXml();
-    if (xml) bridge.load(xml);
+    if (xml) loadXml(xml);
   });
+
+  // 完整 app 模式下 postMessage 不响应，优先同源 ReplaceDiagram，失败降级 postMessage。
+  function loadXml(xml: string) {
+    if (sameOrigin.commitDiagram(xml)) {
+      bridge?.setCachedXml(xml);
+      setDrawioXml(xml);
+    } else {
+      bridge?.load(xml);
+    }
+  }
 
   onMount(async () => {
     try {
@@ -32,13 +42,19 @@
       // 读取失败用默认值
     }
     bridge = new DrawioBridge(frame, "/drawio/index.html");
+    // 完整 app 模式下 draw.io 不安装 installMessageHandler（见 App.js:4028 的
+    // client==1 前置），因此不发 init 也不响应 postMessage load/export。
+    // ready 改由同源检测驱动；onInit 仅作为 embed 模式兜底。
     bridge.onInit(() => {
-      ready = true;
-      const cached = getDrawioXml();
-      if (cached) bridge?.load(cached);
-      startSameOriginWatch();
+      if (!ready) {
+        ready = true;
+        const cached = getDrawioXml();
+        if (cached) bridge?.load(cached);
+      }
     });
     bridge.onSave((xml) => setDrawioXml(xml));
+    // 同源检测驱动 ready：完整 app 模式下依赖 EditorUi 全局符号就绪。
+    startSameOriginWatch();
 
     onAiEvents(async (event, payload) => {
       const p = payload as Record<string, unknown>;
@@ -88,9 +104,19 @@
       }
       if (hasEditor) {
         clearInterval(poll);
+        // EditorUi 已就绪 → 完整 app 菜单栏已渲染，撤下 loading 遮罩。
+        if (!ready) ready = true;
         sameOrigin.watchForEditorUi(fw, (ui) => {
           if (sameOrigin.hasEditor()) return;
           sameOrigin.attach(ui, fw);
+          // 注入 AI 菜单 + Visio 导出项（保留原 draw.io 菜单）。
+          sameOrigin.installMenuExtensions({
+            onAi: () => requestChatFocus(),
+            onVisio: () => doExport("visio-svg"),
+          });
+          // 初始缓存：完整 app 不响应 postMessage load，走同源 ReplaceDiagram。
+          const cached = getDrawioXml();
+          if (cached) loadXml(cached);
           sameOrigin.onSelectionChange(() => {
             setSelectedIds(sameOrigin.readSelection().map((c) => c.id));
           });
@@ -118,12 +144,10 @@
       if (!path) return;
 
       if (format === "pdf") {
-        const svgDataUri = await bridge.export("svg", { border: exportBorder });
-        const svg = decodeURIComponent(escape(atob(svgDataUri.split(",")[1] ?? "")));
+        const svg = sameOrigin.exportSvg(1, exportBorder) ?? (await exportSvgViaPost());
         await exportPdf(path, svg, exportScale, exportBorder);
       } else if (format === "visio-svg") {
-        const svgDataUri = await bridge.export("svg", { border: exportBorder });
-        const svg = decodeURIComponent(escape(atob(svgDataUri.split(",")[1] ?? "")));
+        const svg = sameOrigin.exportSvg(1, exportBorder) ?? (await exportSvgViaPost());
         await exportFile("visio-svg", path, btoa(unescape(encodeURIComponent(svg))));
       } else if (format === "xml") {
         const xml = await bridge.getXml();
@@ -137,6 +161,12 @@
     } finally {
       exporting = false;
     }
+  }
+
+  // 完整 app 模式下 postMessage 导出通道不响应；同源失败时降级 postMessage。
+  async function exportSvgViaPost(): Promise<string> {
+    const svgDataUri = await bridge!.export("svg", { border: exportBorder });
+    return decodeURIComponent(escape(atob(svgDataUri.split(",")[1] ?? "")));
   }
 
   function doLoad() {

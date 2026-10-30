@@ -26,3 +26,10 @@ export function getSelectedIds(): string[] {
 export function setSelectedIds(ids: string[]) {
   selectedIds.value = ids;
 }
+
+// 聊天聚焦信号：draw.io 内 AI 菜单项点击后自增，ChatPanel 监听聚焦输入框。
+export const chatFocusTick = $state<{ n: number }>({ n: 0 });
+
+export function requestChatFocus() {
+  chatFocusTick.n += 1;
+}
