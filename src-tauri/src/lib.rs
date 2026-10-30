@@ -581,6 +581,14 @@ fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 pub fn run() {
+    // NFR-7 可观测性：AI 调用/校验/重试日志（env filter 可调 RUST_LOG）。
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     let data_dir = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("drawio-rust");

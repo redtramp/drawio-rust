@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { DrawioBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
-  import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave } from "$lib/aiClient";
+  import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave, settingsGet } from "$lib/aiClient";
   import { getDrawioXml, setDrawioXml, reloadTick } from "$lib/stores/canvas.svelte";
   import { t } from "$lib/stores/i18n";
 
@@ -10,6 +10,9 @@
   let bridge: DrawioBridge | undefined;
   let ready = $state(false);
   let exporting = $state(false);
+  // FR-X3：导出默认参数（scale/border）来自 settings.export。
+  let exportScale = 2;
+  let exportBorder = 20;
 
   // 版本恢复/外部加载触发：把当前 store 里的 XML 重新载入 iframe。
   $effect(() => {
@@ -19,7 +22,14 @@
     if (xml) bridge.load(xml);
   });
 
-  onMount(() => {
+  onMount(async () => {
+    try {
+      const s = await settingsGet();
+      exportScale = s.export.scale || 2;
+      exportBorder = s.export.border ?? 20;
+    } catch {
+      // 读取失败用默认值
+    }
     bridge = new DrawioBridge(frame, "/drawio/index.html");
     bridge.onInit(() => {
       ready = true;
@@ -67,18 +77,18 @@
       if (!path) return;
 
       if (format === "pdf") {
-        const svgDataUri = await bridge.export("svg", { border: 20 });
+        const svgDataUri = await bridge.export("svg", { border: exportBorder });
         const svg = decodeURIComponent(escape(atob(svgDataUri.split(",")[1] ?? "")));
-        await exportPdf(path, svg, 2, 20);
+        await exportPdf(path, svg, exportScale, exportBorder);
       } else if (format === "visio-svg") {
-        const svgDataUri = await bridge.export("svg", { border: 20 });
+        const svgDataUri = await bridge.export("svg", { border: exportBorder });
         const svg = decodeURIComponent(escape(atob(svgDataUri.split(",")[1] ?? "")));
         await exportFile("visio-svg", path, btoa(unescape(encodeURIComponent(svg))));
       } else if (format === "xml") {
         const xml = await bridge.getXml();
         await exportFile("xml", path, btoa(unescape(encodeURIComponent(xml))));
       } else {
-        const dataUri = await bridge.export(format, { scale: 2, border: 20 });
+        const dataUri = await bridge.export(format, { scale: exportScale, border: exportBorder });
         await exportFile(format, path, dataUri.split(",")[1] ?? "");
       }
     } catch (e) {
