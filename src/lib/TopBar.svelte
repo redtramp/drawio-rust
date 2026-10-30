@@ -3,7 +3,7 @@
   import SettingsDialog from "$lib/settings/SettingsDialog.svelte";
   import SyncPanel from "$lib/sync/SyncPanel.svelte";
   import { settingsGet } from "$lib/aiClient";
-  import { t, lang, setLang } from "$lib/stores/i18n";
+  import { t, lang, setLang } from "$lib/stores/i18n.svelte";
 
   let { dark = $bindable() }: { dark: boolean } = $props();
   let showSettings = $state(false);

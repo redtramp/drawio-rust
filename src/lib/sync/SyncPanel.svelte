@@ -1,6 +1,6 @@
 <script lang="ts">
   import { syncStatus, syncRun } from "$lib/aiClient";
-  import { t } from "$lib/stores/i18n";
+  import { t } from "$lib/stores/i18n.svelte";
 
   let { onclose }: { onclose: () => void } = $props();
   let report = $state<any>(null);

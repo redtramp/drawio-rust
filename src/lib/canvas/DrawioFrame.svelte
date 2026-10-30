@@ -4,7 +4,7 @@
   import { DrawioBridge, SameOriginBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
   import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave, settingsGet } from "$lib/aiClient";
   import { getDrawioXml, setDrawioXml, reloadTick, setSelectedIds } from "$lib/stores/canvas.svelte";
-  import { t } from "$lib/stores/i18n";
+  import { t } from "$lib/stores/i18n.svelte";
 
   let frame: HTMLIFrameElement;
   let bridge: DrawioBridge | undefined;

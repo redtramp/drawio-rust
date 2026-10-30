@@ -7,7 +7,7 @@
     type VersionSnapshot,
   } from "$lib/aiClient";
   import { setDrawioXml, requestReload } from "$lib/stores/canvas.svelte";
-  import { t } from "$lib/stores/i18n";
+  import { t } from "$lib/stores/i18n.svelte";
 
   let versions = $state<VersionSnapshot[]>([]);
   let restoring = $state(false);

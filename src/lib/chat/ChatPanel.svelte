@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { sendChat, onAiEvents, sessionHistory, type UploadedImage } from "$lib/aiClient";
   import { getDrawioXml, getSelectedIds } from "$lib/stores/canvas.svelte";
-  import { t } from "$lib/stores/i18n";
+  import { t } from "$lib/stores/i18n.svelte";
   import VersionCard from "$lib/chat/VersionCard.svelte";
 
   const BLANK =
