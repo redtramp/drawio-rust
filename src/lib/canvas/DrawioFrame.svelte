@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { save } from "@tauri-apps/plugin-dialog";
+  import { open, save } from "@tauri-apps/plugin-dialog";
   import { DrawioBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
-  import { onAiEvents, submitReply, exportFile, exportPdf } from "$lib/aiClient";
+  import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave } from "$lib/aiClient";
   import { getDrawioXml, setDrawioXml } from "$lib/stores/canvas.svelte";
 
   let frame: HTMLIFrameElement;
@@ -83,6 +83,39 @@
     const xml = getDrawioXml();
     if (xml) bridge?.load(xml);
   }
+
+  async function doOpen() {
+    if (!bridge) return;
+    const path = await open({
+      multiple: false,
+      directory: false,
+      filters: [{ name: "draw.io", extensions: ["drawio", "xml"] }],
+    });
+    if (!path || typeof path !== "string") return;
+    try {
+      const { xml } = await fileOpen(path);
+      setDrawioXml(xml);
+      bridge.load(xml);
+    } catch (e) {
+      console.error("open failed:", e);
+    }
+  }
+
+  async function doSave() {
+    if (!bridge) return;
+    const path = await save({
+      filters: [{ name: "draw.io", extensions: ["drawio"] }],
+      defaultPath: "diagram.drawio",
+    });
+    if (!path) return;
+    try {
+      const xml = await bridge.getXml();
+      await fileSave(path, xml);
+      setDrawioXml(xml);
+    } catch (e) {
+      console.error("save failed:", e);
+    }
+  }
 </script>
 
 <div class="relative h-full w-full">
@@ -99,6 +132,8 @@
   {/if}
 
   <div class="absolute right-2 top-2 flex gap-1">
+    <button class="chip" onclick={() => doOpen()}>打开</button>
+    <button class="chip" onclick={() => doSave()}>保存</button>
     <button class="chip" onclick={() => doLoad()}>刷新</button>
     <button class="chip" onclick={() => doExport("png")} disabled={exporting}>PNG</button>
     <button class="chip" onclick={() => doExport("svg")} disabled={exporting}>SVG</button>

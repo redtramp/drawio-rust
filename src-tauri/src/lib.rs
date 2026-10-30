@@ -184,6 +184,27 @@ fn export_pdf(
     Ok(ExportResult { path, converted: 0 })
 }
 
+/// 打开 .drawio 文件（明文 / 压缩双格式），返回规范化 mxfile XML。
+#[derive(Serialize)]
+pub struct FileOpenResult {
+    path: String,
+    xml: String,
+}
+
+#[tauri::command]
+fn file_open(path: String) -> Result<FileOpenResult, String> {
+    let (xml, _) = crate::doc::fileio::read_drawio(std::path::Path::new(&path))
+        .map_err(|e| e.to_string())?;
+    Ok(FileOpenResult { path, xml })
+}
+
+/// 保存 .drawio 文件（明文 mxfile）。
+#[tauri::command]
+fn file_save(path: String, xml: String) -> Result<(), String> {
+    crate::doc::fileio::write_drawio(std::path::Path::new(&path), &xml)
+        .map_err(|e| e.to_string())
+}
+
 #[derive(Serialize)]
 pub struct TurnInfo {
     turn_id: String,
@@ -508,6 +529,8 @@ pub fn run() {
             app_info,
             export_file,
             export_pdf,
+            file_open,
+            file_save,
             ai_chat_send,
             ai_turn_cancel,
             ai_submit,

@@ -125,6 +125,14 @@ export function exportPdf(path: string, svg: string, scale?: number, border?: nu
   return invoke("export_pdf", { path, svg, scale: scale ?? null, border: border ?? null });
 }
 
+export function fileOpen(path: string): Promise<{ path: string; xml: string }> {
+  return invoke("file_open", { path });
+}
+
+export function fileSave(path: string, xml: string): Promise<void> {
+  return invoke("file_save", { path, xml });
+}
+
 export function syncStatus(): Promise<unknown> {
   return invoke("sync_status");
 }
