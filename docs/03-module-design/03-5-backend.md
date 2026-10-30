@@ -13,16 +13,14 @@ Tauri 2 主进程（Rust）承载：AI 编排、文档服务（文件/页/diff�
 ```toml
 # Cargo.toml（workspace）
 [workspace]
-members = ["src-tauri", "crates/drawio-core", "src-tauri"]
+members = ["src-tauri"]
 ```
 
 | crate | 内容 | 依赖边界 |
 |-------|------|----------|
-| `src-tauri` | Tauri 入口、命令注册、事件、keyring（含 Linux 0600 文件降级）、webview、导出编排（依赖 Tauri） | 可依赖下列两个 crate |
-| `crates/drawio-core` | **纯逻辑库**（无 Tauri 依赖）：ai/（prepare/xmlfix/compact/edit/tools/vlm-schema/prompt/providers/stream）、doc/（fileio/pages/diff）、visio/、session/（版本快照） | quick-xml、regex、reqwest、tokio、schemars、zip、flate2、resvg、printpdf、image（降采样） |
-| `src-tauri` | 同步 CLI（`drawio-sync` bin）：manifest/fetch/apply/report；复用 drawio-core 的资产 hash 工具 | shelling out 到系统 git（06 §5，不引 git2）、drawio-core |
+| `src-tauri` | **单一后端 crate**：Tauri 入口、命令注册、事件、keyring（含 Linux 0600 文件降级）、导出编排，及纯逻辑模块 `ai/`（prepare/xmlfix/compact/edit/tools/vlm/prompt/providers）、`doc/`（fileio/diff）、`visio/`、`session/`（版本快照）、`sync/`（manifest/fetch/apply/report）与 `bin/drawio-sync.rs`（同步 CLI） | quick-xml、regex、reqwest、tokio、schemars、zip、flate2、resvg、printpdf、image、glob；shelling out 到系统 git（06 §5，不引 git2） |
 
-**设计意图**：`drawio-core` 无 UI/Tauri 依赖 → 纯单测 + 上游用例对齐（ADR-2）；`drawio-sync` 可独立编译为 CLI 在 CI/开发机运行（06）。
+**设计意图**：单一后端 crate 消除跨 crate 依赖边界；纯逻辑模块（`ai/doc/visio/session`）无 UI/Tauri 依赖，可纯单测 + 上游用例对齐（ADR-2）；`drawio-sync` 作为 bin 目标可在 CI/开发机运行（06）。
 
 ## 3. 各服务要点（详细设计见对应 03.x 分册）
 
