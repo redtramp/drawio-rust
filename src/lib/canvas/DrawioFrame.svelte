@@ -3,12 +3,20 @@
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { DrawioBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
   import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave } from "$lib/aiClient";
-  import { getDrawioXml, setDrawioXml } from "$lib/stores/canvas.svelte";
+  import { getDrawioXml, setDrawioXml, reloadTick } from "$lib/stores/canvas.svelte";
 
   let frame: HTMLIFrameElement;
   let bridge: DrawioBridge | undefined;
   let ready = $state(false);
   let exporting = $state(false);
+
+  // 版本恢复/外部加载触发：把当前 store 里的 XML 重新载入 iframe。
+  $effect(() => {
+    void reloadTick.n;
+    if (!bridge || !ready) return;
+    const xml = getDrawioXml();
+    if (xml) bridge.load(xml);
+  });
 
   onMount(() => {
     bridge = new DrawioBridge(frame, "/drawio/index.html");

@@ -72,6 +72,7 @@ pub struct AppState {
     pub turns: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
     pub channels: Arc<ReplyChannels>,
     pub sessions: Arc<Mutex<HashMap<String, Arc<tokio::sync::Mutex<SessionContext>>>>>,
+    pub versions: Arc<Mutex<session::VersionStore>>,
 }
 
 impl AppState {
@@ -82,6 +83,7 @@ impl AppState {
             turns: Arc::new(Mutex::new(HashMap::new())),
             channels: Arc::new(Mutex::new(HashMap::new())),
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            versions: Arc::new(Mutex::new(session::VersionStore::new())),
         }
     }
 }
@@ -193,16 +195,35 @@ pub struct FileOpenResult {
 
 #[tauri::command]
 fn file_open(path: String) -> Result<FileOpenResult, String> {
-    let (xml, _) = crate::doc::fileio::read_drawio(std::path::Path::new(&path))
-        .map_err(|e| e.to_string())?;
+    let (xml, _) =
+        crate::doc::fileio::read_drawio(std::path::Path::new(&path)).map_err(|e| e.to_string())?;
     Ok(FileOpenResult { path, xml })
 }
 
 /// 保存 .drawio 文件（明文 mxfile）。
 #[tauri::command]
 fn file_save(path: String, xml: String) -> Result<(), String> {
-    crate::doc::fileio::write_drawio(std::path::Path::new(&path), &xml)
-        .map_err(|e| e.to_string())
+    crate::doc::fileio::write_drawio(std::path::Path::new(&path), &xml).map_err(|e| e.to_string())
+}
+
+/// 版本快照列表（不含 xml，最新在前）。
+#[tauri::command]
+fn versions_list(state: State<'_, AppState>) -> Result<Vec<session::VersionSnapshot>, String> {
+    let mut list = state.versions.lock().unwrap().list();
+    list.reverse();
+    Ok(list)
+}
+
+/// 按 id 恢复某版快照，返回完整 mxfile XML。
+#[tauri::command]
+fn version_restore(state: State<'_, AppState>, id: String) -> Result<String, String> {
+    state
+        .versions
+        .lock()
+        .unwrap()
+        .get(&id)
+        .and_then(|s| s.xml.clone())
+        .ok_or_else(|| format!("version {id} not found"))
 }
 
 #[derive(Serialize)]
@@ -276,6 +297,7 @@ async fn ai_chat_send(
     let on_event = {
         let app = app.clone();
         let turn_id = turn_id.clone();
+        let versions = state.versions.clone();
         Arc::new(move |ev: TurnEvent| match ev {
             TurnEvent::Token(t) => {
                 let _ = app.emit(
@@ -293,22 +315,33 @@ async fn ai_chat_send(
                 let _ = app.emit("ai_stream", json!({ "turn_id": turn_id, "kind": "tool_call", "tool": name, "args": args_preview }));
             }
             TurnEvent::DiagramReady { xml, op, page_name } => {
-                let op_json = match op {
-                    DiagramOp::Display => json!({ "tool": "display_diagram" }),
+                let (op_json, label) = match op {
+                    DiagramOp::Display => (json!({ "tool": "display_diagram" }), "display_diagram"),
                     DiagramOp::Edit {
                         operations,
                         unchanged,
-                    } => json!({
-                        "tool": "edit_diagram",
-                        "operations": operations,
-                        "unchanged": unchanged
-                    }),
+                    } => (
+                        json!({
+                            "tool": "edit_diagram",
+                            "operations": operations,
+                            "unchanged": unchanged
+                        }),
+                        "edit_diagram",
+                    ),
                 };
                 let mut payload = json!({ "turn_id": turn_id, "xml": xml, "page_name": page_name });
                 if let Some(obj) = payload.as_object_mut() {
                     obj.extend(op_json.as_object().unwrap().clone());
                 }
                 let _ = app.emit("ai_tool_result", payload);
+
+                // 版本快照：内容有变化才记录并通知前端
+                if let Some(snap) = versions.lock().unwrap().push(label, &xml) {
+                    let _ = app.emit(
+                        "version_new",
+                        serde_json::to_value(&snap).unwrap_or(json!({})),
+                    );
+                }
             }
             TurnEvent::Vlm { status, warnings } => {
                 let v = match status {
@@ -531,6 +564,8 @@ pub fn run() {
             export_pdf,
             file_open,
             file_save,
+            versions_list,
+            version_restore,
             ai_chat_send,
             ai_turn_cancel,
             ai_submit,

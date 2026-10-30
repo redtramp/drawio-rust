@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { sendChat, onAiEvents } from "$lib/aiClient";
   import { getDrawioXml } from "$lib/stores/canvas.svelte";
+  import VersionCard from "$lib/chat/VersionCard.svelte";
 
   const BLANK =
     '<mxfile><diagram id="p1" name="Page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>';
@@ -77,6 +78,8 @@
     <span class="text-sm font-semibold">AI 助手</span>
     <span class="text-xs text-soft">生成 / 编辑图形</span>
   </div>
+
+  <VersionCard />
 
   <div bind:this={scrollEl} class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
     {#if messages.length === 0}

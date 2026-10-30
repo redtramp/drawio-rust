@@ -139,3 +139,31 @@ export function syncStatus(): Promise<unknown> {
 export function syncRun(all: boolean, dryRun: boolean): Promise<unknown> {
   return invoke("sync_run", { all, dryRun });
 }
+
+export interface VersionSnapshot {
+  id: string;
+  label: string;
+  summary: {
+    shapesAdded: number;
+    shapesRemoved: number;
+    shapesChanged: number;
+    edgesAdded: number;
+    edgesRemoved: number;
+    edgesChanged: number;
+  };
+  fromScratch: boolean;
+  seq: number;
+}
+
+export function versionsList(): Promise<VersionSnapshot[]> {
+  return invoke("versions_list");
+}
+
+export function versionRestore(id: string): Promise<string> {
+  return invoke("version_restore", { id });
+}
+
+export async function onVersionNew(handler: (v: VersionSnapshot) => void): Promise<() => void> {
+  const un = await listen("version_new", (e) => handler(e.payload as VersionSnapshot));
+  return () => un();
+}
