@@ -30,8 +30,18 @@
   }
 </script>
 
-<div class="fixed inset-0 z-50 grid place-items-center bg-black/40" onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="w-[520px] rounded-xl border border-outline bg-panel p-5 shadow-xl">
+<div
+  class="fixed inset-0 z-50 grid place-items-center bg-black/40"
+  role="presentation"
+  onclick={(e) => e.target === e.currentTarget && onclose()}
+  onkeydown={(e) => e.key === "Escape" && onclose()}
+>
+  <div
+    class="w-[520px] rounded-xl border border-outline bg-panel p-5 shadow-xl"
+    role="dialog"
+    aria-modal="true"
+    aria-label={t("sync.title")}
+  >
     <h2 class="mb-1 text-base font-semibold">{t("sync.title")}</h2>
     <p class="mb-4 text-xs text-soft">
       检测 draw.io / next-ai-draw-io / drawio-to-visio 的漂移；L1 vendor 换版、L2 资产覆盖、

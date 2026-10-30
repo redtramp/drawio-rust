@@ -60,25 +60,35 @@
   }
 </script>
 
-<div class="fixed inset-0 z-50 grid place-items-center bg-black/40" onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="w-[460px] rounded-xl border border-outline bg-panel p-5 shadow-xl">
+<div
+  class="fixed inset-0 z-50 grid place-items-center bg-black/40"
+  role="presentation"
+  onclick={(e) => e.target === e.currentTarget && onclose()}
+  onkeydown={(e) => e.key === "Escape" && onclose()}
+>
+  <div
+    class="w-[460px] rounded-xl border border-outline bg-panel p-5 shadow-xl"
+    role="dialog"
+    aria-modal="true"
+    aria-label={t("settings.title")}
+  >
     <h2 class="mb-4 text-base font-semibold">{t("settings.title")}</h2>
 
-    <label class="mb-2 block text-xs text-soft">{t("settings.provider")}</label>
-    <select class="field mb-3" bind:value={providerId}>
+    <label class="mb-2 block text-xs text-soft" for="provider-select">{t("settings.provider")}</label>
+    <select class="field mb-3" id="provider-select" bind:value={providerId}>
       {#each providers as p}
         <option value={p.id}>{p.name}</option>
       {/each}
     </select>
 
-    <label class="mb-2 block text-xs text-soft">{t("settings.model")}</label>
-    <input class="field mb-3" bind:value={model} placeholder={selected?.default_model ?? "model"} />
+    <label class="mb-2 block text-xs text-soft" for="model-input">{t("settings.model")}</label>
+    <input class="field mb-3" id="model-input" bind:value={model} placeholder={selected?.default_model ?? "model"} />
 
-    <label class="mb-2 block text-xs text-soft">{t("settings.baseUrl")}（留空用默认 {selected?.default_base_url ?? ""}）</label>
-    <input class="field mb-3" bind:value={baseUrl} placeholder={selected?.default_base_url ?? ""} />
+    <label class="mb-2 block text-xs text-soft" for="base-url-input">{t("settings.baseUrl")}（留空用默认 {selected?.default_base_url ?? ""}）</label>
+    <input class="field mb-3" id="base-url-input" bind:value={baseUrl} placeholder={selected?.default_base_url ?? ""} />
 
-    <label class="mb-2 block text-xs text-soft">{t("settings.apiKey")}（{selected?.api_key_label ?? ""}，留空不修改）</label>
-    <input class="field mb-3" type="password" bind:value={apiKey} placeholder="sk-…" />
+    <label class="mb-2 block text-xs text-soft" for="api-key-input">{t("settings.apiKey")}（{selected?.api_key_label ?? ""}，留空不修改）</label>
+    <input class="field mb-3" id="api-key-input" type="password" bind:value={apiKey} placeholder="sk-…" />
 
     {#if testResult}
       <p class="mb-3 text-xs {testResult.startsWith('✓') ? 'text-ok' : 'text-err'}">{testResult}</p>
