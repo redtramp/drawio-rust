@@ -1,0 +1,46 @@
+# drawio-rust 上游同步清单
+# 规范：docs/04-interfaces-and-protocols.md §5.1、docs/06-upstream-sync.md
+# tier 取值：l1（vendor 整目录换版）/ l2（文本资产 hash 比对覆盖）/ l3（逻辑变更→再移植报告）/ l2+l3
+# 变更本文件需评审；pinned_commit 由 drawio-sync 在同步成功后推进。
+
+[upstream.drawio]
+remote = "https://github.com/jgraph/drawio.git"
+branch = "dev"
+pinned_commit = "9034053fba80a435e27d68d374bc564b83917ae9"
+tier = "l1"
+source_path = "src/main/webapp"          # 上游内子路径
+target_path = "public/drawio"            # drawio-rust 内目标（同源伺服，ADR-3）
+note = "编辑器内核；整目录换版"
+
+[upstream.next-ai-draw-io]
+remote = "https://github.com/DayuanJiang/next-ai-draw-io.git"
+branch = "main"
+pinned_commit = "05adbe5eabfded4f6fd9838236c437b5bd63c718"
+tier = "l2+l3"                           # 含 L2 资产 + L3 逻辑
+
+[[upstream.next-ai-draw-io.assets]]      # L2：文本资源（hash 比对覆盖）
+source = "lib/system-prompts.ts"         # 由 extract 规则生成 md（见 06 §4.2）
+target = "src-tauri/assets/prompt/system-prompt.md"
+[[upstream.next-ai-draw-io.assets]]
+source_glob = "docs/shape-libraries/*.md"
+target_dir = "src-tauri/assets/prompt/shape-libraries"
+[[upstream.next-ai-draw-io.assets]]
+source = "lib/model-catalog.json"
+target = "src-tauri/assets/prompt/model-catalog.json"
+
+[[upstream.next-ai-draw-io.logic]]       # L3：逻辑映射（变更→再移植报告）
+source_glob = "packages/mcp-server/src/{new-diagram,xml-validation,compact-cells,style-classes,xml-attributes,edit-diagram,pages,embedded-images}.ts"
+maps_to = "src-tauri/src/ai/"
+[[upstream.next-ai-draw-io.logic]]
+source_glob = "lib/{diagram-diff,diagram-pages}.ts"
+maps_to = "src-tauri/src/doc/"
+
+[upstream.drawio-to-visio]
+remote = "https://github.com/PanJitao/drawio-to-visio.git"
+branch = "main"
+pinned_commit = "eed7363eddebed7c95d2ca3dbdfe77ba88a000d5"
+tier = "l3"
+
+[[upstream.drawio-to-visio.logic]]
+source_glob = "drawio-to-visio/scripts/fix_svg_for_visio.py"
+maps_to = "src-tauri/src/visio/"
