@@ -75,7 +75,6 @@ type ReplyChannels = Mutex<HashMap<(String, String), tokio::sync::oneshot::Sende
 /// 应用状态。
 pub struct AppState {
     pub data_dir: PathBuf,
-    pub keyring: Arc<settings::KeyringBackend>,
     pub turns: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
     pub channels: Arc<ReplyChannels>,
     pub sessions: Arc<Mutex<HashMap<String, Arc<tokio::sync::Mutex<SessionContext>>>>>,
@@ -85,7 +84,6 @@ pub struct AppState {
 impl AppState {
     pub fn new(data_dir: PathBuf) -> Self {
         Self {
-            keyring: Arc::new(settings::KeyringBackend::new(&data_dir)),
             data_dir,
             turns: Arc::new(Mutex::new(HashMap::new())),
             channels: Arc::new(Mutex::new(HashMap::new())),
@@ -257,10 +255,7 @@ async fn ai_chat_send(
     if !settings.ai_enabled {
         return Err("AI 未启用（设置里开启）".to_string());
     }
-    let api_key = state
-        .keyring
-        .get(&settings.provider.provider_id)?
-        .unwrap_or_default();
+    let api_key = settings.provider.api_key.clone().unwrap_or_default();
     let provider = build_provider(
         &settings.provider.provider_id,
         &settings.provider.model,
@@ -274,7 +269,8 @@ async fn ai_chat_send(
         &settings.provider.validation_model,
     ) {
         (Some(vid), Some(vmodel)) => {
-            let vkey = state.keyring.get(vid)?.unwrap_or_default();
+            // VLM 校验模型复用主 provider 的 api_key（当前无独立 key 配置）。
+            let vkey = settings.provider.api_key.clone().unwrap_or_default();
             Some(build_provider(vid, vmodel, None, &vkey).map_err(|e| e.to_string())?)
         }
         _ => None,
@@ -487,7 +483,10 @@ async fn ai_submit(
 
 #[tauri::command]
 async fn settings_get(state: State<'_, AppState>) -> Result<settings::Settings, String> {
-    settings::Settings::load(&state.data_dir)
+    // 脱敏：api_key 不回传前端，前端依赖「留空不修改」语义。
+    let mut s = settings::Settings::load(&state.data_dir)?;
+    s.provider.api_key = None;
+    Ok(s)
 }
 
 #[tauri::command]
@@ -507,12 +506,13 @@ async fn settings_save(
     s.provider.validation_provider_id = validation_provider_id;
     s.provider.validation_model = validation_model;
     s.onboarded = true;
-    s.save(&state.data_dir)?;
+    // 前端「留空不修改」：仅当传入非空 key 时才覆盖已存 key。
     if let Some(key) = api_key {
         if !key.is_empty() {
-            state.keyring.set(&provider_id, &key)?;
+            s.provider.api_key = Some(key);
         }
     }
+    s.save(&state.data_dir)?;
     Ok(())
 }
 
@@ -545,11 +545,14 @@ async fn model_test(
     let allow_local = !spec.requires_api_key;
     settings::validate_endpoint(&url, allow_local)?;
 
-    // key：优先用本次填入的 key；留空则回退到 keyring 里已保存的 key
+    // key：优先用本次填入的 key；留空则回退到 config.toml 里已保存的 key
     //（前端「留空不修改」语义，与 ai_chat_send 一致）。
     let key = match api_key.as_deref() {
         Some(k) if !k.trim().is_empty() => k.to_string(),
-        _ => state.keyring.get(&provider_id)?.unwrap_or_default(),
+        _ => settings::Settings::load(&state.data_dir)?
+            .provider
+            .api_key
+            .unwrap_or_default(),
     };
     let provider = build_provider(&provider_id, &model, base_url.as_deref(), &key)
         .map_err(|e| e.to_string())?;

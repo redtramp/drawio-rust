@@ -17,7 +17,6 @@ dirs = "5"
 flate2 = "1"
 futures-util = "0.3"
 image = { version = "0.24", default-features = false, features = ["png", "jpeg"] }
-keyring = "3"
 printpdf = { version = "0.7", features = ["embedded_images"] }
 quick-xml = "0.36"
 regex = "1"

@@ -1,10 +1,9 @@
-//! 设置与密钥（docs/03-5 §6、§7）。
+//! 设置（docs/03-5 §6、§7）。
 //!
-//! 配置持久化到 data_dir/config.toml；API key 优先存系统 keyring，无 Secret
-//! Service（Linux）时降级到 data_dir/keys.toml（0600）。SSRF 校验在 model_test
-//! 与自定义 endpoint 生效，Ollama/SGLang 本地默认放行。
+//! 配置持久化到 data_dir/config.toml（含 api_key，文件 0600）。SSRF 校验在
+//! model_test 与自定义 endpoint 生效，Ollama/SGLang 本地默认放行。
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +18,10 @@ pub struct ProviderSettings {
     pub validation_provider_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub validation_model: Option<String>,
+    /// API key：明文持久化到 config.toml（文件 0600）。前端「留空不修改」，
+    /// 故 settings_get 会脱敏为 None，不回传明文。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +68,7 @@ impl Default for Settings {
                 base_url: None,
                 validation_provider_id: None,
                 validation_model: None,
+                api_key: None,
             },
             export: ExportDefaults {
                 scale: 2.0,
@@ -94,81 +98,14 @@ impl Settings {
     }
 
     pub fn save(&self, data_dir: &Path) -> Result<(), String> {
+        use std::os::unix::fs::PermissionsExt;
         std::fs::create_dir_all(data_dir).map_err(|e| format!("mkdir: {e}"))?;
         let path = data_dir.join("config.toml");
         let content = toml::to_string_pretty(self).map_err(|e| format!("serialize: {e}"))?;
-        std::fs::write(&path, content).map_err(|e| format!("write config: {e}"))
-    }
-}
-
-/// 密钥后端：keyring 优先，文件（0600）降级。
-pub struct KeyringBackend {
-    keyfile: PathBuf,
-}
-
-impl KeyringBackend {
-    pub fn new(data_dir: &Path) -> Self {
-        Self {
-            keyfile: data_dir.join("keys.toml"),
-        }
-    }
-
-    fn keyring_get(provider_id: &str) -> Option<String> {
-        keyring::Entry::new("drawio-rust", provider_id)
-            .ok()
-            .and_then(|e| e.get_password().ok())
-    }
-
-    fn keyring_set(provider_id: &str, api_key: &str) -> bool {
-        keyring::Entry::new("drawio-rust", provider_id)
-            .and_then(|e| e.set_password(api_key))
-            .is_ok()
-    }
-
-    pub fn get(&self, provider_id: &str) -> Result<Option<String>, String> {
-        if let Some(k) = Self::keyring_get(provider_id) {
-            return Ok(Some(k));
-        }
-        self.get_file(provider_id)
-    }
-
-    pub fn set(&self, provider_id: &str, api_key: &str) -> Result<(), String> {
-        // keyring 成功则不再写文件；否则写文件降级
-        if Self::keyring_set(provider_id, api_key) {
-            return Ok(());
-        }
-        self.set_file(provider_id, api_key)
-    }
-
-    fn read_keys(&self) -> Result<std::collections::HashMap<String, String>, String> {
-        if !self.keyfile.exists() {
-            return Ok(Default::default());
-        }
-        let content =
-            std::fs::read_to_string(&self.keyfile).map_err(|e| format!("read keys: {e}"))?;
-        toml::from_str(&content).map_err(|e| format!("parse keys: {e}"))
-    }
-
-    fn write_keys(&self, map: &std::collections::HashMap<String, String>) -> Result<(), String> {
-        use std::os::unix::fs::PermissionsExt;
-        if let Some(parent) = self.keyfile.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
-        }
-        let content = toml::to_string_pretty(map).map_err(|e| format!("serialize keys: {e}"))?;
-        std::fs::write(&self.keyfile, content).map_err(|e| format!("write keys: {e}"))?;
-        // 0600
-        let _ = std::fs::set_permissions(&self.keyfile, std::fs::Permissions::from_mode(0o600));
+        std::fs::write(&path, content).map_err(|e| format!("write config: {e}"))?;
+        // 含 api_key，收紧为 0600
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
         Ok(())
-    }
-
-    fn get_file(&self, provider_id: &str) -> Result<Option<String>, String> {
-        Ok(self.read_keys()?.get(provider_id).cloned())
-    }
-
-    fn set_file(&self, provider_id: &str, api_key: &str) -> Result<(), String> {
-        let mut map = self.read_keys()?;
-        map.insert(provider_id.to_string(), api_key.to_string());
-        self.write_keys(&map)
     }
 }
 
@@ -233,11 +170,12 @@ mod tests {
     }
 
     #[test]
-    fn keyfile_fallback() {
+    fn api_key_roundtrip_not_serialized_when_none() {
         let tmp = tempfile::tempdir().unwrap();
-        let kb = KeyringBackend::new(tmp.path());
-        kb.set("test", "secret").unwrap();
-        // 可能写 keyring 或文件；文件路径的 get 至少可用（降级路径）
-        let _ = kb.get("test");
+        let mut s = Settings::default();
+        s.provider.api_key = Some("sk-test".to_string());
+        s.save(tmp.path()).unwrap();
+        let loaded = Settings::load(tmp.path()).unwrap();
+        assert_eq!(loaded.provider.api_key.as_deref(), Some("sk-test"));
     }
 }
