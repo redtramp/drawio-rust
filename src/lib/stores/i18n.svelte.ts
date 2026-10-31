@@ -5,7 +5,6 @@ export type Lang = "zh-CN" | "en";
 
 const DICT: Record<string, { "zh-CN": string; en: string }> = {
   "app.subtitle": { "zh-CN": "AI 绘图 · Visio 导出", en: "AI diagrams · Visio export" },
-  "topbar.sync": { "zh-CN": "上游同步", en: "Upstream sync" },
   "topbar.settings": { "zh-CN": "设置", en: "Settings" },
   "topbar.theme": { "zh-CN": "主题", en: "Theme" },
   "chat.title": { "zh-CN": "AI 助手", en: "AI Assistant" },
@@ -18,9 +17,6 @@ const DICT: Record<string, { "zh-CN": string; en: string }> = {
   "chat.send": { "zh-CN": "发送", en: "Send" },
   "chat.stop": { "zh-CN": "停止", en: "Stop" },
   "canvas.loading": { "zh-CN": "加载编辑器…", en: "Loading editor…" },
-  "canvas.open": { "zh-CN": "打开", en: "Open" },
-  "canvas.save": { "zh-CN": "保存", en: "Save" },
-  "canvas.refresh": { "zh-CN": "刷新", en: "Refresh" },
   "versions.title": { "zh-CN": "版本历史", en: "Version history" },
   "versions.refresh": { "zh-CN": "刷新", en: "Refresh" },
   "versions.empty": {
@@ -40,12 +36,6 @@ const DICT: Record<string, { "zh-CN": string; en: string }> = {
   "settings.test": { "zh-CN": "测试连接", en: "Test" },
   "settings.save": { "zh-CN": "保存", en: "Save" },
   "settings.cancel": { "zh-CN": "取消", en: "Cancel" },
-  "sync.title": { "zh-CN": "上游同步", en: "Upstream sync" },
-  "sync.status": { "zh-CN": "查看状态", en: "Status" },
-  "sync.run": { "zh-CN": "执行同步", en: "Run sync" },
-  "sync.dryrun": { "zh-CN": "dry-run（只检测不写入）", en: "dry-run (detect only)" },
-  "sync.drift": { "zh-CN": "有漂移", en: "Drift" },
-  "sync.uptodate": { "zh-CN": "已最新", en: "Up to date" },
 };
 
 export const lang = $state<{ value: Lang }>({ value: "zh-CN" });

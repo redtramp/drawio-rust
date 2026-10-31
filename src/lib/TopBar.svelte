@@ -1,13 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import SettingsDialog from "$lib/settings/SettingsDialog.svelte";
-  import SyncPanel from "$lib/sync/SyncPanel.svelte";
   import { settingsGet } from "$lib/aiClient";
   import { t, lang, setLang } from "$lib/stores/i18n.svelte";
 
   let { dark = $bindable() }: { dark: boolean } = $props();
   let showSettings = $state(false);
-  let showSync = $state(false);
 
   onMount(async () => {
     // 首次引导 + 载入语言
@@ -30,7 +28,6 @@
 
   <div class="flex items-center gap-1">
     <button class="icon-btn" onclick={toggleLang} title="Language">{lang.value === "zh-CN" ? "EN" : "中"}</button>
-    <button class="icon-btn" onclick={() => (showSync = true)} title={t("topbar.sync")}>⇄</button>
     <button class="icon-btn" onclick={() => (showSettings = true)} title={t("topbar.settings")}>⚙</button>
     <button class="icon-btn" onclick={() => (dark = !dark)} title={t("topbar.theme")}>{dark ? "☀" : "🌙"}</button>
   </div>
@@ -38,9 +35,6 @@
 
 {#if showSettings}
   <SettingsDialog onclose={() => (showSettings = false)} />
-{/if}
-{#if showSync}
-  <SyncPanel onclose={() => (showSync = false)} />
 {/if}
 
 <style>

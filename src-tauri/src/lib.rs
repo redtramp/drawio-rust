@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::ai::orchestrator::{
     run_turn, CanvasContext, DiagramOp, TurnBridge, TurnEvent, TurnInput, UploadedImage, VlmStatus,
@@ -577,42 +577,6 @@ async fn model_test(
     }
 }
 
-#[tauri::command]
-async fn sync_status(app: AppHandle) -> Result<serde_json::Value, String> {
-    let root = project_root(&app)?;
-    let report = crate::sync::fetch::status(root, &[])?;
-    serde_json::to_value(report).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn sync_run(app: AppHandle, all: bool, dry_run: bool) -> Result<serde_json::Value, String> {
-    let root = project_root(&app)?;
-    let mut args = vec!["--dry-run".to_string()];
-    if all {
-        args.push("--all".to_string());
-    }
-    if !dry_run {
-        args.retain(|a| a != "--dry-run");
-    }
-    let report = crate::sync::apply::run(root, &args)?;
-    serde_json::to_value(report).map_err(|e| e.to_string())
-}
-
-/// 项目根（含 upstream.toml 的目录）。打包后为可执行文件旁的资源目录。
-fn project_root(app: &AppHandle) -> Result<PathBuf, String> {
-    // 开发期：当前工作目录（drawio-rust）。打包期：exe 旁。
-    let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    if cwd.join("upstream.toml").exists() {
-        return Ok(cwd);
-    }
-    if let Ok(res) = app.path().resource_dir() {
-        if res.join("upstream.toml").exists() {
-            return Ok(res);
-        }
-    }
-    Err("upstream.toml not found (run from project root)".to_string())
-}
-
 pub fn run() {
     // NFR-7 可观测性：日志同时写 stdout 与 data_dir/logs/（按日滚动），
     // env filter 用 RUST_LOG 可调。日志只含元信息（provider/model/耗时），
@@ -660,8 +624,6 @@ pub fn run() {
             settings_save,
             providers_list,
             model_test,
-            sync_status,
-            sync_run,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

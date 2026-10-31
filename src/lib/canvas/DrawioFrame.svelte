@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { save } from "@tauri-apps/plugin-dialog";
   import { DrawioBridge, SameOriginBridge, pngDataUriToBase64 } from "$lib/canvas/bridge";
-  import { onAiEvents, submitReply, exportFile, exportPdf, fileOpen, fileSave, settingsGet } from "$lib/aiClient";
-  import { getDrawioXml, setDrawioXml, reloadTick, setSelectedIds, requestChatFocus } from "$lib/stores/canvas.svelte";
+  import { onAiEvents, submitReply, exportFile, settingsGet } from "$lib/aiClient";
+  import { getDrawioXml, setDrawioXml, reloadTick, setSelectedIds } from "$lib/stores/canvas.svelte";
   import { t } from "$lib/stores/i18n.svelte";
 
   let frame: HTMLIFrameElement;
@@ -11,8 +11,7 @@
   let sameOrigin = new SameOriginBridge();
   let ready = $state(false);
   let exporting = $state(false);
-  // FR-X3：导出默认参数（scale/border）来自 settings.export。
-  let exportScale = 2;
+  // Visio 导出默认 border 来自 settings.export。
   let exportBorder = 20;
 
   // 版本恢复/外部加载触发：把当前 store 里的 XML 重新载入 iframe。
@@ -36,7 +35,6 @@
   onMount(async () => {
     try {
       const s = await settingsGet();
-      exportScale = s.export.scale || 2;
       exportBorder = s.export.border ?? 20;
     } catch {
       // 读取失败用默认值
@@ -109,10 +107,9 @@
         sameOrigin.watchForEditorUi(fw, (ui) => {
           if (sameOrigin.hasEditor()) return;
           sameOrigin.attach(ui, fw);
-          // 注入 AI 菜单 + Visio 导出项（保留原 draw.io 菜单）。
+          // 注入 Visio 导出项（保留原 draw.io 菜单）。
           sameOrigin.installMenuExtensions({
-            onAi: () => requestChatFocus(),
-            onVisio: () => doExport("visio-svg"),
+            onVisio: () => exportVisio(),
           });
           // 初始缓存：完整 app 不响应 postMessage load，走同源 ReplaceDiagram。
           const cached = getDrawioXml();
@@ -128,34 +125,15 @@
     }, 50);
   }
 
-  async function doExport(format: "png" | "svg" | "xml" | "visio-svg" | "pdf") {
+  // Visio 导出：draw.io 原生菜单不具备，注入到 File → Export as 后触发。
+  async function exportVisio() {
     if (!bridge || exporting) return;
     exporting = true;
     try {
-      const labels: Record<string, { name: string; ext: string }> = {
-        png: { name: "PNG", ext: "png" },
-        svg: { name: "SVG", ext: "svg" },
-        xml: { name: "draw.io", ext: "drawio" },
-        "visio-svg": { name: "Visio SVG", ext: "svg" },
-        pdf: { name: "PDF", ext: "pdf" },
-      };
-      const { name, ext } = labels[format];
-      const path = await save({ filters: [{ name, extensions: [ext] }], defaultPath: `diagram.${ext}` });
+      const path = await save({ filters: [{ name: "Visio SVG", extensions: ["svg"] }], defaultPath: "diagram.svg" });
       if (!path) return;
-
-      if (format === "pdf") {
-        const svg = sameOrigin.exportSvg(1, exportBorder) ?? (await exportSvgViaPost());
-        await exportPdf(path, svg, exportScale, exportBorder);
-      } else if (format === "visio-svg") {
-        const svg = sameOrigin.exportSvg(1, exportBorder) ?? (await exportSvgViaPost());
-        await exportFile("visio-svg", path, btoa(unescape(encodeURIComponent(svg))));
-      } else if (format === "xml") {
-        const xml = await bridge.getXml();
-        await exportFile("xml", path, btoa(unescape(encodeURIComponent(xml))));
-      } else {
-        const dataUri = await bridge.export(format, { scale: exportScale, border: exportBorder });
-        await exportFile(format, path, dataUri.split(",")[1] ?? "");
-      }
+      const svg = sameOrigin.exportSvg(1, exportBorder) ?? (await exportSvgViaPost());
+      await exportFile("visio-svg", path, btoa(unescape(encodeURIComponent(svg))));
     } catch (e) {
       console.error("export failed:", e);
     } finally {
@@ -167,44 +145,6 @@
   async function exportSvgViaPost(): Promise<string> {
     const svgDataUri = await bridge!.export("svg", { border: exportBorder });
     return decodeURIComponent(escape(atob(svgDataUri.split(",")[1] ?? "")));
-  }
-
-  function doLoad() {
-    const xml = getDrawioXml();
-    if (xml) bridge?.load(xml);
-  }
-
-  async function doOpen() {
-    if (!bridge) return;
-    const path = await open({
-      multiple: false,
-      directory: false,
-      filters: [{ name: "draw.io", extensions: ["drawio", "xml"] }],
-    });
-    if (!path || typeof path !== "string") return;
-    try {
-      const { xml } = await fileOpen(path);
-      setDrawioXml(xml);
-      bridge.load(xml);
-    } catch (e) {
-      console.error("open failed:", e);
-    }
-  }
-
-  async function doSave() {
-    if (!bridge) return;
-    const path = await save({
-      filters: [{ name: "draw.io", extensions: ["drawio"] }],
-      defaultPath: "diagram.drawio",
-    });
-    if (!path) return;
-    try {
-      const xml = await bridge.getXml();
-      await fileSave(path, xml);
-      setDrawioXml(xml);
-    } catch (e) {
-      console.error("save failed:", e);
-    }
   }
 </script>
 
@@ -220,35 +160,5 @@
       {t("canvas.loading")}
     </div>
   {/if}
-
-  <div class="absolute right-2 top-2 flex gap-1">
-    <button class="chip" onclick={() => doOpen()}>{t("canvas.open")}</button>
-    <button class="chip" onclick={() => doSave()}>{t("canvas.save")}</button>
-    <button class="chip" onclick={() => doLoad()}>{t("canvas.refresh")}</button>
-    <button class="chip" onclick={() => doExport("png")} disabled={exporting}>PNG</button>
-    <button class="chip" onclick={() => doExport("svg")} disabled={exporting}>SVG</button>
-    <button class="chip" onclick={() => doExport("xml")} disabled={exporting}>.drawio</button>
-    <button class="chip" onclick={() => doExport("visio-svg")} disabled={exporting}>Visio</button>
-    <button class="chip" onclick={() => doExport("pdf")} disabled={exporting}>PDF</button>
-  </div>
 </div>
 
-<style>
-  .chip {
-    padding: 4px 10px;
-    font-size: 12px;
-    border-radius: 6px;
-    background: var(--color-panel);
-    border: 1px solid var(--color-outline);
-    color: var(--color-ink);
-    cursor: pointer;
-  }
-  .chip:hover:not(:disabled) {
-    background: var(--color-accent);
-    color: white;
-  }
-  .chip:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-</style>

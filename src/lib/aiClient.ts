@@ -129,25 +129,6 @@ export function exportFile(format: string, path: string, data: string): Promise<
   return invoke("export_file", { format, path, data });
 }
 
-export function exportPdf(path: string, svg: string, scale?: number, border?: number): Promise<void> {
-  return invoke("export_pdf", { path, svg, scale: scale ?? null, border: border ?? null });
-}
-
-export function fileOpen(path: string): Promise<{ path: string; xml: string }> {
-  return invoke("file_open", { path });
-}
-
-export function fileSave(path: string, xml: string): Promise<void> {
-  return invoke("file_save", { path, xml });
-}
-
-export function syncStatus(): Promise<unknown> {
-  return invoke("sync_status");
-}
-export function syncRun(all: boolean, dryRun: boolean): Promise<unknown> {
-  return invoke("sync_run", { all, dryRun });
-}
-
 export interface VersionSnapshot {
   id: string;
   label: string;

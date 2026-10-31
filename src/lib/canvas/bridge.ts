@@ -234,22 +234,13 @@ export class SameOriginBridge {
 
   /**
    * 在 draw.io 原菜单基础上注入自定义菜单项（FR-菜单扩展）：
-   * - 顶级 "AI" 菜单，点击子项触发宿主回调（聚焦聊天/生成入口）。
-   * - 在 File → Export as 末尾追加 "Visio" 导出项。
+   * 在 File → Export as 末尾追加 "Visio" 导出项。
    * 通过包装 exportAs 菜单的 funct 实现，不改 vendored 源码。
    */
-  installMenuExtensions(handlers: { onAi: () => void; onVisio: () => void }): boolean {
+  installMenuExtensions(handlers: { onVisio: () => void }): boolean {
     const { ui } = this;
-    if (!ui?.menubar || !ui?.menus) return false;
+    if (!ui?.menus) return false;
     try {
-      // 顶级 AI 菜单（追加到菜单栏末尾，保留原 file/edit/view/arrange/extras/help）。
-      // menubar.addMenu 返回的元素 class 是 geMenubar（容器样式），原菜单项靠
-      // menuCreated 改成 geItem；这里手动对齐，避免绝对定位把菜单栏布局打乱。
-      const aiElt = ui.menubar.addMenu("AI", (menu: any, parent: any) => {
-        menu.addItem("生成图表", null, () => handlers.onAi(), parent);
-      });
-      if (aiElt) aiElt.className = "geItem";
-
       // Visio 导出：包装 exportAs.funct，在原导出项后追加。
       const exportAs = ui.menus.get("exportAs");
       if (exportAs?.funct) {
