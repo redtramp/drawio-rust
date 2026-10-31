@@ -20,7 +20,7 @@ image = { version = "0.24", default-features = false, features = ["png", "jpeg"]
 printpdf = { version = "0.7", features = ["embedded_images"] }
 quick-xml = "0.36"
 regex = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "gzip", "brotli", "deflate"] }
 resvg = "0.44"
 schemars = "0.8"
 serde = { version = "1", features = ["derive"] }

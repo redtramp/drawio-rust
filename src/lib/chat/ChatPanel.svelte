@@ -24,6 +24,44 @@
   let pendingImages = $state<UploadedImage[]>([]);
   let fileInput: HTMLInputElement;
 
+  // 输入框高度：基础高度可拖拽调整，内容多时自动增高到上限。
+  let inputEl: HTMLTextAreaElement;
+  let baseHeight = $state(44);
+  const MIN_INPUT_H = 40;
+  const MAX_INPUT_H = 360;
+
+  // 自动增高：按内容长高，但不低于拖拽设定的基础高度。
+  $effect(() => {
+    void input;
+    void baseHeight;
+    if (!inputEl) return;
+    inputEl.style.height = "0px";
+    const auto = inputEl.scrollHeight + 2;
+    inputEl.style.height = `${Math.min(Math.max(auto, baseHeight), MAX_INPUT_H)}px`;
+  });
+
+  function onResizePointerDown(e: PointerEvent) {
+    const startY = e.clientY;
+    const startH = baseHeight;
+    e.preventDefault();
+    const move = (ev: PointerEvent) => {
+      baseHeight = Math.min(MAX_INPUT_H, Math.max(MIN_INPUT_H, startH + (startY - ev.clientY)));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  }
+
   onMount(async () => {
     // 会话恢复：加载历史消息
     const history = await sessionHistory(sessionId);
@@ -193,7 +231,7 @@
         {/each}
       </div>
     {/if}
-    <div class="flex items-center gap-2">
+    <div class="flex items-end gap-2">
       <input
         type="file"
         accept="image/*"
@@ -203,17 +241,26 @@
         onchange={onFilesPicked}
       />
       <button class="icon-btn" onclick={pickImage} title="上传图片">🖼</button>
-      <input
-        class="min-w-0 flex-1 rounded-md border border-outline bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent"
-        placeholder={t("chat.placeholder")}
-        bind:value={input}
-        onkeydown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            send();
-          }
-        }}
-      />
+      <div class="flex min-w-0 flex-1 flex-col">
+        <button
+          type="button"
+          class="resize-handle"
+          aria-label="拖拽调整输入框高度"
+          onpointerdown={onResizePointerDown}
+          onkeydown={(e) => {
+            if (e.key === "ArrowUp") baseHeight = Math.min(MAX_INPUT_H, baseHeight + 16);
+            else if (e.key === "ArrowDown") baseHeight = Math.max(MIN_INPUT_H, baseHeight - 16);
+          }}
+        ></button>
+        <textarea
+          bind:this={inputEl}
+          class="min-w-0 w-full resize-none rounded-md border border-outline bg-surface px-2 py-1.5 text-sm outline-none focus:border-accent"
+          placeholder={t("chat.placeholder")}
+          rows={1}
+          bind:value={input}
+          onkeydown={onKeydown}
+        ></textarea>
+      </div>
       {#if streaming}
         <button class="btn" onclick={stop}>{t("chat.stop")}</button>
       {:else}
@@ -237,5 +284,17 @@
   .icon-btn:hover {
     background: var(--color-surface);
     border-color: var(--color-outline);
+  }
+  .resize-handle {
+    height: 5px;
+    margin-bottom: 2px;
+    border-radius: 3px;
+    cursor: ns-resize;
+    background: transparent;
+    outline: none;
+  }
+  .resize-handle:hover,
+  .resize-handle:focus-visible {
+    background: var(--color-outline);
   }
 </style>
