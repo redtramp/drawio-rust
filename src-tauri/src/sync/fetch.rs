@@ -131,6 +131,11 @@ pub fn doctor() -> Result<(), String> {
 mod tests {
     use super::*;
 
+    /// 仓库路径统一用 `/` 分隔：Windows 反斜杠既会被 git 解析，也是 TOML 转义字符。
+    fn repo_path(p: &Path) -> String {
+        p.to_string_lossy().replace('\\', "/")
+    }
+
     fn init_upstream(dir: &Path) {
         std::fs::create_dir_all(dir).unwrap();
         git(&["init", "-q"], dir).unwrap();
@@ -150,7 +155,7 @@ mod tests {
         let head = git(&["rev-parse", "HEAD"], &up_dir).unwrap();
 
         let up = Upstream {
-            remote: up_dir.to_string_lossy().to_string(),
+            remote: repo_path(&up_dir),
             branch: "main".to_string(),
             pinned_commit: head.clone(),
             tier: "l1".to_string(),
@@ -179,7 +184,7 @@ mod tests {
         init_upstream(&up_dir);
         let head = git(&["rev-parse", "HEAD"], &up_dir).unwrap();
         let up = Upstream {
-            remote: up_dir.to_string_lossy().to_string(),
+            remote: repo_path(&up_dir),
             branch: "main".to_string(),
             pinned_commit: head,
             tier: "l1".to_string(),
@@ -206,7 +211,7 @@ branch = "main"
 pinned_commit = "{}"
 tier = "l1"
 "#,
-            up_dir.to_string_lossy(),
+            repo_path(&up_dir),
             head
         );
         std::fs::write(tmp.path().join("upstream.toml"), toml).unwrap();

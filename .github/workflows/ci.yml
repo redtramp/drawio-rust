@@ -25,6 +25,14 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Linux system deps (Tauri)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev \
+            build-essential curl wget file
+
       - uses: Swatinem/rust-cache@v2
 
       - uses: pnpm/action-setup@v4
@@ -35,10 +43,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: package.json
 
       - name: Install frontend deps
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Frontend type check + build
         run: |
@@ -64,6 +72,13 @@ jobs:
         with:
           components: llvm-tools-preview
 
+      - name: Install Linux system deps (Tauri)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev libssl-dev \
+            build-essential curl wget file
+
       - uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-llvm-cov
@@ -71,24 +86,3 @@ jobs:
 
       - name: Coverage gate (≥80% lines, pure logic only)
         run: cargo llvm-cov --workspace --fail-under-lines 80 --ignore-filename-regex 'src/lib.rs|src/main.rs|src/bin/|src/error.rs|src/settings.rs|src/export.rs'
-
-  bundle:
-    # 全量 Tauri 打包仅在 ubuntu 跑（成本考虑）；mac/win 产物走发布流程
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev
-
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: .
-          tauriScript: cargo

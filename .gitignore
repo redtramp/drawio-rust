@@ -4,6 +4,8 @@
 # Node / frontend
 node_modules/
 dist/
+# 锁文件不入库（由 pnpm install 在本地/CI 生成）
+pnpm-lock.yaml
 
 # Sync runtime state (mirrors, lock)
 .sync/

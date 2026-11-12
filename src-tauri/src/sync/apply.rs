@@ -334,7 +334,9 @@ mod tests {
         let map = dir_map(&d).unwrap();
         assert_eq!(map.len(), 2);
         assert!(map.contains_key("a.txt"));
-        assert!(map.contains_key("sub/b.txt"));
+        // 相对路径用平台分隔符拼接，避免 Windows 下 "sub\\b.txt" 断言失败
+        let nested = Path::new("sub").join("b.txt").to_string_lossy().to_string();
+        assert!(map.contains_key(&nested));
         // 不存在目录 → 空 map
         assert!(dir_map(&tmp.path().join("nope")).unwrap().is_empty());
     }
