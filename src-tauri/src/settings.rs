@@ -98,13 +98,16 @@ impl Settings {
     }
 
     pub fn save(&self, data_dir: &Path) -> Result<(), String> {
-        use std::os::unix::fs::PermissionsExt;
         std::fs::create_dir_all(data_dir).map_err(|e| format!("mkdir: {e}"))?;
         let path = data_dir.join("config.toml");
         let content = toml::to_string_pretty(self).map_err(|e| format!("serialize: {e}"))?;
         std::fs::write(&path, content).map_err(|e| format!("write config: {e}"))?;
-        // 含 api_key，收紧为 0600
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        // 含 api_key，收紧为 0600（仅 Unix；Windows 由 ACL 控制，无等价位）
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        }
         Ok(())
     }
 }
